@@ -1,0 +1,50 @@
+<view class="container profile-page">
+  <view class="avatar-area">
+    <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+      <image
+        wx:if="{{avatarTempPath || avatarFileID}}"
+        class="avatar-btn__img"
+        src="{{avatarTempPath || avatarFileID}}"
+        mode="aspectFill"
+      />
+      <text wx:else class="avatar-btn__placeholder">选择头像</text>
+    </button>
+    <text wx:if="{{uploading}}" class="avatar-area__status">头像上传中…</text>
+  </view>
+
+  <view class="form">
+    <text class="form__label">昵称</text>
+    <input
+      class="form__input"
+      type="nickname"
+      value="{{nickname}}"
+      placeholder="点击填写微信昵称"
+      maxlength="20"
+      disabled="{{submitting}}"
+      bindinput="onInputNickname"
+      bindblur="onInputNickname"
+    />
+    <text wx:if="{{nicknameError}}" class="form__error">{{nicknameError}}</text>
+  </view>
+
+  <view wx:if="{{error}}" class="page-error">
+    <text>{{error.message}}</text>
+  </view>
+
+  <button
+    class="save"
+    type="primary"
+    loading="{{submitting}}"
+    disabled="{{submitting || uploading}}"
+    bindtap="tapSave"
+  >{{submitting ? '保存中…' : '保存并进入'}}</button>
+
+  <view wx:if="{{isInitial}}" class="later" bindtap="tapLater">
+    <text class="later__text">稍后再说</text>
+  </view>
+  <view wx:else class="back" bindtap="tapBack">
+    <text class="back__text">返回</text>
+  </view>
+
+  <text class="tip">昵称将展示给牌局中的其他成员，用于区分输赢记录。</text>
+</view>

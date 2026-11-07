@@ -1,0 +1,10 @@
+{
+  "name": "room",
+  "version": "1.0.0",
+  "description": "麻将记账 — 牌局生命周期云函数",
+  "main": "index.js",
+  "private": true,
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

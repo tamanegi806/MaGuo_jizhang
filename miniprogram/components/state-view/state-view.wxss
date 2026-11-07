@@ -1,0 +1,68 @@
+/* state-view — 复用 app.wxss 设计变量 */
+.state-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 96rpx var(--padding-base);
+}
+
+.state-view__loading,
+.state-view__error,
+.state-view__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.state-view__spinner {
+  width: 64rpx;
+  height: 64rpx;
+  margin-bottom: 24rpx;
+  border: 6rpx solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: state-view-spin 0.9s linear infinite;
+}
+
+@keyframes state-view-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.state-view__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88rpx;
+  height: 88rpx;
+  margin-bottom: 24rpx;
+  font-size: 48rpx;
+  color: var(--color-warning);
+  border: 2rpx solid var(--color-border);
+  border-radius: 50%;
+}
+
+.state-view__icon--empty {
+  color: var(--color-text-secondary);
+}
+
+.state-view__text {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+}
+
+.state-view__retry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 160rpx;
+  min-height: 96rpx; /* ≥44px */
+  margin-top: 32rpx;
+  padding: 0 48rpx;
+  font-size: var(--font-size-base);
+  color: var(--color-primary);
+  border: 1rpx solid var(--color-primary);
+  border-radius: var(--radius-base);
+}

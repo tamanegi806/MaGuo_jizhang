@@ -1,0 +1,8 @@
+{
+  "usingComponents": {
+    "state-view": "/components/state-view/state-view",
+    "settlement-list": "/components/settlement-list/settlement-list",
+    "entry-card": "/components/entry-card/entry-card",
+    "invite-sheet": "/components/invite-sheet/invite-sheet"
+  }
+}

@@ -1,0 +1,27 @@
+<view wx:if="{{visible}}" class="invite-sheet">
+  <view class="invite-sheet__mask" bindtap="onClose"></view>
+  <view class="invite-sheet__panel">
+    <view class="invite-sheet__header">
+      <text class="invite-sheet__title">邀请好友加入牌局</text>
+      <view class="invite-sheet__close" bindtap="onClose">×</view>
+    </view>
+
+    <view class="invite-sheet__qr-area">
+      <view wx:if="{{qrLoading}}" class="invite-sheet__skeleton"></view>
+      <image wx:elif="{{qrFileID}}" class="invite-sheet__qr-img" src="{{qrFileID}}" mode="aspectFit" />
+      <view wx:else class="invite-sheet__qr-error">
+        <text class="invite-sheet__qr-error-text">{{errorText}}</text>
+        <view class="invite-sheet__retry" bindtap="onRetry">重试</view>
+      </view>
+    </view>
+
+    <view class="invite-sheet__code-row">
+      <text class="invite-sheet__code-label">邀请码</text>
+      <text class="invite-sheet__code">{{inviteCode}}</text>
+      <view class="invite-sheet__copy" bindtap="onCopyCode">复制</view>
+    </view>
+
+    <button class="invite-sheet__share" open-type="share">转发给好友</button>
+    <text class="invite-sheet__hint">好友扫码或点击转发卡片即可加入当前牌局</text>
+  </view>
+</view>

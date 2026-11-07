@@ -1,0 +1,67 @@
+<view class="container">
+  <state-view wx:if="{{loading}}" type="loading" />
+  <state-view
+    wx:elif="{{error}}"
+    type="error"
+    text="{{error.message}}"
+    bind:retry="tapRetry"
+  />
+
+  <block wx:else>
+    <view class="head">
+      <text class="head__title">记一笔</text>
+      <view class="head__done" bindtap="tapDone">完成</view>
+    </view>
+
+    <view class="picker-block">
+      <member-picker
+        members="{{members}}"
+        valueOpenid="{{fromOpenid}}"
+        excludeOpenid="{{toOpenid}}"
+        label="付款人（输家）"
+        bind:change="onFromChange"
+      />
+    </view>
+
+    <view class="swap {{fromOpenid && toOpenid ? '' : 'swap--disabled'}}" bindtap="tapSwap">
+      <text class="swap__icon">⇅</text>
+      <text class="swap__text">交换</text>
+    </view>
+
+    <view class="picker-block">
+      <member-picker
+        members="{{members}}"
+        valueOpenid="{{toOpenid}}"
+        excludeOpenid="{{fromOpenid}}"
+        label="收款人（赢家）"
+        bind:change="onToChange"
+      />
+    </view>
+
+    <view class="amount-block">
+      <text class="amount-block__label">金额（元）</text>
+      <amount-input
+        value="{{amountValue}}"
+        disabled="{{submitting}}"
+        bind:change="onAmountChange"
+      />
+    </view>
+
+    <view wx:if="{{preview.fromName && preview.toName}}" class="preview">
+      <text class="preview__line">{{preview.fromName}} 付给 {{preview.toName}}</text>
+      <text class="preview__amount">{{preview.amountText}}</text>
+    </view>
+
+    <view wx:if="{{saveError}}" class="save-error">
+      <text>{{saveError}}</text>
+    </view>
+
+    <button
+      class="save"
+      type="primary"
+      loading="{{submitting}}"
+      disabled="{{!canSave || submitting}}"
+      bindtap="onSave"
+    >{{submitting ? '保存中…' : '保存'}}</button>
+  </block>
+</view>

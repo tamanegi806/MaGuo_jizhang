@@ -1,0 +1,43 @@
+<view class="container">
+  <view class="header">
+    <image
+      class="header__avatar"
+      src="{{user.avatarFileID || ''}}"
+      mode="aspectFill"
+      bindtap="tapProfile"
+    />
+    <text class="header__title">麻将记账</text>
+    <view class="header__join" bindtap="tapJoin">加入牌局</view>
+  </view>
+
+  <state-view wx:if="{{loading && rooms.length === 0}}" type="loading" />
+  <state-view
+    wx:elif="{{error && rooms.length === 0}}"
+    type="error"
+    text="{{error.message}}"
+    bind:retry="tapRetry"
+  />
+  <state-view wx:elif="{{!loading && rooms.length === 0}}" type="empty" text="还没有牌局，创建一个吧" />
+
+  <view wx:if="{{rooms.length > 0}}" class="room-list">
+    <navigator
+      wx:for="{{rooms}}"
+      wx:key="roomId"
+      url="/pages/room/room?id={{item.roomId}}"
+      class="room-card"
+      hover-class="room-card--hover"
+    >
+      <view class="room-card__main">
+        <text class="room-card__name">{{item.name}}</text>
+        <text class="room-card__status {{item.status === 'ended' ? 'room-card__status--ended' : ''}}">{{item.statusText}}</text>
+      </view>
+      <text class="room-card__meta">{{item.createdAtStr}} · {{item.memberCount}}人</text>
+    </navigator>
+    <view wx:if="{{loadingMore}}" class="room-list__more">加载中…</view>
+    <view wx:elif="{{!hasMore}}" class="room-list__more">没有更多了</view>
+  </view>
+
+  <view class="footer safe-area-bottom">
+    <button class="footer__create" type="primary" bindtap="tapCreate" disabled="{{loading}}">＋ 创建牌局</button>
+  </view>
+</view>

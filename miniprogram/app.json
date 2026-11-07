@@ -1,0 +1,18 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/create/create",
+    "pages/join/join",
+    "pages/room/room",
+    "pages/entry/entry",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTitleText": "麻将记账",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f5f5f5"
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2"
+}

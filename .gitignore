@@ -1,0 +1,7 @@
+node_modules/
+coverage/
+.miniprogram/
+temp/
+dist/
+.DS_Store
+thor.log

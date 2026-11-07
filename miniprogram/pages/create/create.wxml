@@ -1,0 +1,29 @@
+<view class="container">
+  <view class="form">
+    <text class="form__label">牌局名称</text>
+    <input
+      class="form__input"
+      value="{{name}}"
+      placeholder="如：周五夜场"
+      maxlength="30"
+      focus
+      disabled="{{submitting}}"
+      bindinput="onInputName"
+    />
+    <text wx:if="{{nameError}}" class="form__error">{{nameError}}</text>
+  </view>
+
+  <view wx:if="{{error}}" class="submit-error">
+    <text class="submit-error__text">{{error.message}}</text>
+  </view>
+
+  <button
+    class="submit"
+    type="primary"
+    loading="{{submitting}}"
+    disabled="{{submitting}}"
+    bindtap="onSubmit"
+  >{{submitting ? '创建中…' : '创建并邀请'}}</button>
+
+  <text class="tip">创建后可分享小程序码或邀请码给好友加入</text>
+</view>

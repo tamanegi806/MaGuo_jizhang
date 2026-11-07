@@ -1,0 +1,33 @@
+<view class="container">
+  <view wx:if="{{autoJoining && submitting}}" class="auto-join">
+    <text class="auto-join__text">正在加入…</text>
+    <text class="auto-join__code">{{code}}</text>
+  </view>
+
+  <block wx:else>
+    <view class="form">
+      <text class="form__label">输入 6 位邀请码</text>
+      <input
+        class="form__input"
+        value="{{code}}"
+        placeholder="A7K2M9"
+        maxlength="6"
+        disabled="{{submitting}}"
+        bindinput="onInputCode"
+      />
+      <view wx:if="{{error}}" class="form__error-box">
+        <text class="form__error">{{error.message}}</text>
+      </view>
+    </view>
+
+    <button
+      class="submit"
+      type="primary"
+      loading="{{submitting}}"
+      disabled="{{submitting}}"
+      bindtap="tapJoin"
+    >{{submitting ? '加入中…' : '加入牌局'}}</button>
+  </block>
+
+  <text class="tip">也可以直接点击好友分享的卡片，或使用微信扫一扫小程序码加入。</text>
+</view>

@@ -1,0 +1,39 @@
+/* amount-input — 复用 app.wxss 设计变量 */
+.amount-input__wrap {
+  display: flex;
+  align-items: center;
+  min-height: 96rpx; /* ≥44px 点击区域 */
+  padding: 0 var(--padding-base);
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-base);
+  background-color: #ffffff;
+}
+
+.amount-input__symbol {
+  margin-right: 12rpx;
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+}
+
+.amount-input__field {
+  flex: 1;
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+}
+
+.amount-input__placeholder {
+  color: var(--color-text-secondary);
+}
+
+.amount-input__error {
+  display: block;
+  margin-top: 8rpx;
+  padding-left: 8rpx;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
+}
+
+.amount-input--disabled .amount-input__wrap {
+  background-color: var(--color-bg);
+  opacity: 0.6;
+}

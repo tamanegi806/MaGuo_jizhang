@@ -1,0 +1,10 @@
+{
+  "name": "invite",
+  "version": "1.0.0",
+  "description": "麻将记账 — 邀请小程序码云函数",
+  "main": "index.js",
+  "private": true,
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

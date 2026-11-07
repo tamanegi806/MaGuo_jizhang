@@ -1,0 +1,84 @@
+<view class="container room-page">
+  <state-view wx:if="{{loading && !room}}" type="loading" />
+  <state-view
+    wx:elif="{{error && !room}}"
+    type="error"
+    text="{{error.message}}"
+    bind:retry="tapRetry"
+  />
+
+  <block wx:if="{{room}}">
+    <view class="room-head">
+      <view class="room-head__row">
+        <text class="room-head__name">{{room.name}}</text>
+        <text class="room-head__status {{room.status === 'ended' ? 'room-head__status--ended' : ''}}">{{room.status === 'ended' ? '已结束' : '进行中'}}</text>
+      </view>
+      <text class="room-head__meta">创建于 {{createdAtStr}} · {{room.memberCount}}人</text>
+    </view>
+
+    <view wx:if="{{endedReadonly}}" class="readonly-bar">
+      <text class="readonly-bar__icon">⚠</text>
+      <text class="readonly-bar__text">牌局已结束，数据仅可查看</text>
+    </view>
+
+    <view class="section">
+      <text class="section__title">成员</text>
+      <scroll-view scroll-x class="members" enable-flex>
+        <view wx:for="{{members}}" wx:key="openid" class="members__item">
+          <image class="members__avatar" src="{{item.avatarFileID || ''}}" mode="aspectFill" />
+          <text class="members__name">{{item.nickname}}</text>
+          <text wx:if="{{item.isOwner}}" class="members__owner">房主</text>
+        </view>
+      </scroll-view>
+    </view>
+
+    <view class="section">
+      <text class="section__title">结算统计</text>
+      <settlement-list items="{{settlement}}" />
+    </view>
+
+    <view class="section">
+      <view class="section__head">
+        <text class="section__title">输赢记录</text>
+        <view wx:if="{{permissions.canInvite}}" class="section__invite" bindtap="tapInvite">邀请</view>
+      </view>
+
+      <state-view wx:if="{{entries.length === 0}}" type="empty" text="还没有流水，点「记一笔」开始" />
+      <block wx:else>
+        <view class="entries">
+          <entry-card class="entries__card" wx:for="{{entries}}" wx:key="entryId" entry="{{item}}" />
+        </view>
+        <view wx:if="{{loadingMore}}" class="entries__more">加载中…</view>
+        <view wx:elif="{{!entriesHasMore}}" class="entries__more">没有更多了</view>
+      </block>
+    </view>
+
+    <view wx:if="{{!endedReadonly}}" class="actions safe-area-bottom">
+      <button
+        wx:if="{{permissions.canAddEntry}}"
+        class="actions__add"
+        type="primary"
+        bindtap="tapAddEntry"
+      >记一笔</button>
+      <button
+        wx:if="{{permissions.canEndRoom}}"
+        class="actions__end"
+        type="default"
+        loading="{{submitting}}"
+        disabled="{{submitting}}"
+        bindtap="tapEnd"
+      >结束牌局</button>
+    </view>
+  </block>
+
+  <invite-sheet
+    visible="{{inviteVisible}}"
+    inviteCode="{{inviteCode}}"
+    qrFileID="{{qrFileID}}"
+    qrLoading="{{qrLoading}}"
+    qrError="{{qrError}}"
+    bind:close="onInviteClose"
+    bind:retry="onInviteRetry"
+    bind:copyCode="onCopyCode"
+  />
+</view>

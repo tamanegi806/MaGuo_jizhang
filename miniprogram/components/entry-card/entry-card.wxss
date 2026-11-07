@@ -1,0 +1,44 @@
+/* entry-card — 复用 app.wxss 设计变量 */
+.entry-card {
+  padding: var(--padding-base);
+  border-radius: var(--radius-base);
+  background-color: #ffffff;
+}
+
+.entry-card__main {
+  display: flex;
+  align-items: center;
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+}
+
+.entry-card__from,
+.entry-card__to {
+  max-width: 240rpx;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.entry-card__arrow {
+  margin: 0 16rpx;
+  color: var(--color-text-secondary);
+}
+
+.entry-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16rpx;
+}
+
+.entry-card__time {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.entry-card__amount {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-danger);
+}

@@ -1,0 +1,16 @@
+<view class="amount-input {{disabled ? 'amount-input--disabled' : ''}}">
+  <view class="amount-input__wrap">
+    <text class="amount-input__symbol">¥</text>
+    <input
+      class="amount-input__field"
+      type="digit"
+      value="{{text}}"
+      placeholder="{{placeholder}}"
+      placeholder-class="amount-input__placeholder"
+      disabled="{{disabled}}"
+      bindinput="onInput"
+      bindblur="onBlur"
+    />
+  </view>
+  <text wx:if="{{errorText}}" class="amount-input__error">{{errorText}}</text>
+</view>
