@@ -12,6 +12,9 @@ const COLLECTIONS = (() => {
 })()
 const { MAX_MEMBERS } = COLLECTIONS
 
+/** 清除流水的单次批量上限为 1000 条，最多循环 100 批（10 万条，理论不可达）防死循环 */
+const DELETE_ENTRIES_MAX_BATCHES = 100
+
 /**
  * @param {object} db - cloud.database()
  * @param {object} _ - db.command
@@ -154,6 +157,32 @@ function createRepositories(db, _) {
         await transaction.rollback()
         throw err
       }
+    },
+
+    /**
+     * 删除房间文档
+     * @returns {Promise<boolean>} 是否确有删除
+     */
+    async removeById(roomId) {
+      const res = await rooms.doc(roomId).remove()
+      const removed = (res && res.stats && res.stats.removed) || 0
+      return removed > 0
+    },
+
+    /**
+     * 批量清除某房间全部流水（分批循环直至删空）
+     * @returns {Promise<number>} 删除总条数
+     */
+    async deleteByRoom(roomId) {
+      let total = 0
+      for (let i = 0; i < DELETE_ENTRIES_MAX_BATCHES; i++) {
+        const res = await entries.where({ roomId }).remove()
+        const removed = (res && res.stats && res.stats.removed) || 0
+        total += removed
+        if (removed === 0) return total
+      }
+      // 超过批次上限仍未删空（理论不可达），返回已删数量，剩余由重试补偿
+      return total
     },
 
     // ── 流水扫描（供 detail 结算/最近流水）────────────────

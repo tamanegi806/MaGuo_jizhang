@@ -168,6 +168,14 @@ class FakeRoomRepo {
     return { status: 'ended', room: updated }
   }
 
+  /**
+   * 删除房间（模拟 doc().remove()）
+   * @returns {Promise<boolean>}
+   */
+  async removeById(roomId) {
+    return this._data.delete(roomId)
+  }
+
   /** 便捷种子（测试初始化用） */
   async seed(roomWithoutId) {
     const stored = { ...roomWithoutId, _id: roomWithoutId._id || nextId('r') }
@@ -264,6 +272,16 @@ class FakeEntryRepo {
 
   async countByRoom(roomId) {
     return this._data.filter((e) => e.roomId === roomId).length
+  }
+
+  /**
+   * 批量清除某房间全部流水（模拟 where().remove()）
+   * @returns {Promise<number>} 删除条数
+   */
+  async deleteByRoom(roomId) {
+    const before = this._data.length
+    this._data = this._data.filter((e) => e.roomId !== roomId)
+    return before - this._data.length
   }
 }
 

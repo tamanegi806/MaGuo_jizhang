@@ -6,7 +6,7 @@
       mode="aspectFill"
       bindtap="tapProfile"
     />
-    <text class="header__title">麻将记账</text>
+    <text class="header__title">{{user.nickname || '未设置昵称'}}</text>
     <view class="header__join" bindtap="tapJoin">加入牌局</view>
   </view>
 
@@ -28,16 +28,16 @@
       hover-class="room-card--hover"
     >
       <view class="room-card__main">
-        <text class="room-card__name">{{item.name}}</text>
+        <text class="room-card__time">{{item.createdAtStr}}</text>
         <text class="room-card__status {{item.status === 'ended' ? 'room-card__status--ended' : ''}}">{{item.statusText}}</text>
       </view>
-      <text class="room-card__meta">{{item.createdAtStr}} · {{item.memberCount}}人</text>
+      <text class="room-card__meta">{{item.memberCount}}人</text>
     </navigator>
     <view wx:if="{{loadingMore}}" class="room-list__more">加载中…</view>
     <view wx:elif="{{!hasMore}}" class="room-list__more">没有更多了</view>
   </view>
 
   <view class="footer safe-area-bottom">
-    <button class="footer__create" type="primary" bindtap="tapCreate" disabled="{{loading}}">＋ 创建牌局</button>
+    <button class="footer__create" type="primary" bindtap="tapCreate" loading="{{creating}}" disabled="{{creating}}">＋ 创建牌局</button>
   </view>
 </view>

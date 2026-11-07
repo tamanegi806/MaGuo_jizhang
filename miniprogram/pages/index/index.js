@@ -6,13 +6,13 @@
 const roomService = require('../../services/room-service')
 const { friendlyMessage } = require('../../utils/error-message')
 const { formatDateTime } = require('../../utils/date')
+const { uuidv4 } = require('../../utils/uuid')
 
 const PAGE_SIZE = 20
 
 function toCard(room) {
   return {
     roomId: room.roomId,
-    name: room.name,
     memberCount: room.memberCount,
     status: room.status,
     statusText: room.status === 'ended' ? '已结束' : '进行中',
@@ -28,6 +28,8 @@ Page({
     page: 0, // 下一页页码
     hasMore: true,
     loadingMore: false,
+    creating: false,
+    clientRequestId: '', // 创建幂等键：失败重试复用，成功后清空待下次新建
     user: null
   },
 
@@ -89,8 +91,26 @@ Page({
     this.loadRooms({ refresh: true })
   },
 
-  tapCreate() {
-    wx.navigateTo({ url: '/pages/create/create' })
+  /**
+   * 直接创建牌局（v1.4 起无名称输入）：成功跳详情并自动打开邀请。
+   * 幂等键首次生成、失败重试复用；创建成功后清空，下一次点击是新牌局。
+   */
+  async tapCreate() {
+    if (this.data.creating) return
+    const clientRequestId = this.data.clientRequestId || uuidv4()
+    if (clientRequestId !== this.data.clientRequestId) {
+      this.setData({ clientRequestId })
+    }
+    this.setData({ creating: true })
+    try {
+      const res = await roomService.createRoom({ clientRequestId })
+      this.setData({ creating: false, clientRequestId: '' })
+      const roomId = res && res.room ? res.room.roomId : ''
+      wx.navigateTo({ url: `/pages/room/room?id=${roomId}&openInvite=1` })
+    } catch (err) {
+      this.setData({ creating: false })
+      wx.showToast({ title: friendlyMessage(err), icon: 'none' })
+    }
   },
 
   tapJoin() {

@@ -5,6 +5,8 @@
  * 仓储封装原子操作并返回状态枚举，错误判定集中在此，便于内存测试注入
  */
 
+const crypto = require('crypto')
+
 // 本地优先解析项目根 shared/ 与 _shared/（与测试共享同一 AppError 类实例，instanceof 才可靠）；
 // 部署后包外无这些路径，回退到包内同步副本 ./shared/
 function loadShared(name) {
@@ -24,20 +26,24 @@ function loadInfra(name) {
 
 const { AppError, ErrorCodes } = loadShared('errors')
 const { normalizeCode, isValidCodeFormat, generateCode } = loadShared('invite-code')
-const { canAddEntry, canEndRoom, canInvite } = loadShared('permissions')
+const { canAddEntry, canEndRoom, canInvite, canDeleteRoom } = loadShared('permissions')
 const { MAX_MEMBERS, ROOM_STATUS_ACTIVE, ROOM_STATUS_ENDED, PAGE_SIZE_ROOMS } = loadShared('constants')
 const { formatEntry, nicknameOf } = loadInfra('entry-format')
 
-const NAME_MIN = 1
 const NAME_MAX = 30
 const REQ_ID_MAX = 64
 const INVITE_RETRY = 5
 const RECENT_ENTRIES = 20
 const SETTLEMENT_BATCH = 100
 
-/** 默认随机源；测试可注入 ctx.rng */
-function defaultRng() {
-  return Math.floor(Math.random() * 32)
+/**
+ * 默认随机源：crypto.randomInt(min, max) -> [min, max) 均匀整数。
+ * 必须是双参形式：generateCode 依 rng.length>=2 走整数分支；
+ * 若误写成无参返回整数索引，会被当 [0,1) 浮点放大取模后恒为 0（历史 bug：邀请码恒为 222222）。
+ * 测试可注入 ctx.rng。
+ */
+function defaultRng(min, max) {
+  return crypto.randomInt(min, max)
 }
 
 /**
@@ -66,8 +72,9 @@ async function create(payload, ctx) {
   requireOpenid(ctx)
   const p = payload || {}
 
+  // 名称可选（v1.4 起创建不再输入名称）：缺省/空白存空串，超长仍拒绝
   const name = typeof p.name === 'string' ? p.name.trim() : ''
-  if (name.length < NAME_MIN || name.length > NAME_MAX) {
+  if (name.length > NAME_MAX) {
     throw new AppError(ErrorCodes.INVALID_PARAM, 'INVALID_PARAM')
   }
   const clientRequestId = p.clientRequestId
@@ -230,7 +237,8 @@ async function detail(payload, ctx) {
     permissions: {
       canAddEntry: canAddEntry(ctx.openid, room),
       canEndRoom: canEndRoom(ctx.openid, room),
-      canInvite: canInvite(ctx.openid, room)
+      canInvite: canInvite(ctx.openid, room),
+      canDeleteRoom: canDeleteRoom(ctx.openid, room)
     }
   }
 }
@@ -272,4 +280,37 @@ async function end(payload, ctx) {
   }
 }
 
-module.exports = { create, join, list, detail, end, toSummary }
+// ── remove（删除牌局记录）───────────────────────────────
+/**
+ * 仅房主可删除；删除后牌局对所有成员不可见，其流水一并清除。
+ * 顺序：先删房间文档（立即对所有成员生效），再尽力清除流水；
+ * 流水清除失败不回滚（孤儿流水不可见，可重入重试清除）。
+ */
+async function remove(payload, ctx) {
+  requireOpenid(ctx)
+  const roomId = (payload || {}).roomId
+  if (!roomId || typeof roomId !== 'string') {
+    throw new AppError(ErrorCodes.INVALID_PARAM, 'INVALID_PARAM')
+  }
+
+  const room = await ctx.roomRepo.findById(roomId)
+  if (!room) throw new AppError(ErrorCodes.ROOM_NOT_FOUND, 'ROOM_NOT_FOUND')
+  if (room.ownerOpenid !== ctx.openid) {
+    throw new AppError(ErrorCodes.NOT_ROOM_OWNER, 'NOT_ROOM_OWNER')
+  }
+
+  await ctx.roomRepo.removeById(roomId)
+
+  let deletedEntries = 0
+  try {
+    deletedEntries = await ctx.entryRepo.deleteByRoom(roomId)
+  } catch (err) {
+    if (ctx.log && ctx.log.warn) {
+      ctx.log.warn('delete entries after room removal failed', err && err.message)
+    }
+  }
+
+  return { roomId, deleted: true, deletedEntries }
+}
+
+module.exports = { create, join, list, detail, end, remove, toSummary }

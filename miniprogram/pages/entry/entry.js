@@ -1,7 +1,8 @@
 /**
  * 记一笔（详细设计 6.2.5 / 6.7 / 7.3）
  * 进入页面生成 clientRequestId，重试复用、成功后换新；
- * 付款人默认当前用户；收款人排除付款人；成功后停留本页连续录入。
+ * 付款人默认当前用户；收款人排除付款人；成功后停留本页连续录入；
+ * 支持 options.payee（点好友头像进入时）预置收款人。
  */
 
 const roomService = require('../../services/room-service')
@@ -34,6 +35,8 @@ Page({
       this.setData({ loading: false, error: { code: 'LOCAL', message: '缺少牌局参数' } })
       return
     }
+    // 由详情页点好友头像进入时，预置收款人为该好友
+    this._presetPayee = (options && options.payee) || ''
     // 每次进入页面生成幂等键；保存成功后为下一笔重新生成
     this.setData({ roomId, clientRequestId: uuidv4() })
     this.loadRoom()
@@ -60,7 +63,13 @@ Page({
       const fromOpenid = hasMe
         ? me
         : room.ownerOpenid || (members[0] && members[0].openid) || ''
-      this.setData({ loading: false, members, fromOpenid })
+      // 预置收款人：仅当其为牌局成员且不与付款人相同
+      const presetValid =
+        this._presetPayee &&
+        this._presetPayee !== fromOpenid &&
+        members.some((m) => m.openid === this._presetPayee)
+      const toOpenid = presetValid ? this._presetPayee : ''
+      this.setData({ loading: false, members, fromOpenid, toOpenid })
       this.updateDerived()
     } catch (err) {
       this.setData({ loading: false, error: { code: err.code, message: friendlyMessage(err) } })

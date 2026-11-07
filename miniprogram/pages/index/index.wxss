@@ -16,6 +16,9 @@
   margin-left: 20rpx;
   font-size: 36rpx;
   font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .header__join {
@@ -49,7 +52,7 @@
   justify-content: space-between;
 }
 
-.room-card__name {
+.room-card__time {
   flex: 1;
   font-size: var(--font-size-lg);
   font-weight: 600;

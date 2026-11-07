@@ -21,6 +21,8 @@ const {
 
 const opts = loadPageOptions('../../miniprogram/pages/index/index')
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 const TS = new Date(2026, 10, 7, 20, 0).getTime()
 
 function roomSummary(over = {}) {
@@ -62,17 +64,17 @@ describe('pages/index', () => {
     expect(roomService.listRooms).not.toHaveBeenCalled()
   })
 
-  test('onShow 加载第 0 页并映射展示字段', async () => {
+  test('onShow 加载第 0 页并映射展示字段（v1.4 卡片不再显示名称）', async () => {
     roomService.listRooms.mockResolvedValue({ items: [roomSummary()], page: 0, hasMore: false })
     const inst = await shown(createInstance(opts))
     expect(roomService.listRooms).toHaveBeenCalledWith({ page: 0, pageSize: 20 })
     expect(inst.data.rooms[0]).toMatchObject({
       roomId: 'r_1',
-      name: '周五夜场',
       statusText: '进行中',
       createdAtStr: '2026-11-07 20:00',
       memberCount: 4
     })
+    expect(inst.data.rooms[0]).not.toHaveProperty('name')
     expect(inst.data.loading).toBe(false)
     expect(inst.data.hasMore).toBe(false)
   })
@@ -139,15 +141,53 @@ describe('pages/index', () => {
     expect(inst.data.rooms).toHaveLength(1)
   })
 
-  test('入口跳转', () => {
+  test('入口跳转（join/profile）', () => {
     const inst = createInstance(opts)
-    inst.tapCreate()
     inst.tapJoin()
     inst.tapProfile()
     expect(wx.navigateTo.mock.calls).toEqual([
-      [{ url: '/pages/create/create' }],
       [{ url: '/pages/join/join' }],
       [{ url: '/pages/profile/profile' }]
     ])
+  })
+
+  test('tapCreate 直接创建（不传名称）-> 跳详情并自动打开邀请', async () => {
+    roomService.createRoom.mockResolvedValue({ room: { roomId: 'r_new' } })
+    const inst = createInstance(opts)
+    await inst.tapCreate()
+    expect(roomService.createRoom).toHaveBeenCalledWith({
+      clientRequestId: expect.stringMatching(UUID_RE)
+    })
+    expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/room/room?id=r_new&openInvite=1' })
+    expect(inst.data.creating).toBe(false)
+    expect(inst.data.clientRequestId).toBe('') // 成功后清键，下次点击是新牌局
+  })
+
+  test('创建失败 -> Toast 且保留幂等键；重试复用同键', async () => {
+    roomService.createRoom.mockRejectedValue({ code: 5001, message: 'INTERNAL_ERROR' })
+    const inst = createInstance(opts)
+    await inst.tapCreate()
+    expect(wx.showToast).toHaveBeenCalledWith({ title: '服务异常，请稍后再试', icon: 'none' })
+    const key = inst.data.clientRequestId
+    expect(key).toMatch(UUID_RE)
+
+    roomService.createRoom.mockResolvedValue({ room: { roomId: 'r_new' } })
+    await inst.tapCreate()
+    expect(roomService.createRoom).toHaveBeenLastCalledWith({ clientRequestId: key })
+    expect(inst.data.clientRequestId).toBe('')
+  })
+
+  test('创建进行中重复点击不再发请求', async () => {
+    let resolve
+    roomService.createRoom.mockImplementation(
+      () => new Promise((r) => { resolve = r })
+    )
+    const inst = createInstance(opts)
+    const first = inst.tapCreate()
+    await inst.tapCreate() // 第二次点击应被 creating 拦截
+    expect(roomService.createRoom).toHaveBeenCalledTimes(1)
+    resolve({ room: { roomId: 'r_new' } })
+    await first
+    expect(wx.navigateTo).toHaveBeenCalledTimes(1)
   })
 })

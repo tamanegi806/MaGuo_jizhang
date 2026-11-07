@@ -2,7 +2,9 @@
  * 牌局详情（详细设计 6.2.4 / 6.7 / 7.2-7.5）
  * 数据：roomService.getRoomDetail + entryService.listEntries 分页；
  * 进行中每 10 秒轮询（onHide/onUnload/已结束停止）；
- * 邀请：打开弹层时才生成小程序码；结束：确认框 → endRoom → 只读。
+ * 邀请：打开弹层时才生成小程序码；结束：确认框 → endRoom → 只读；
+ * 成员：头像下方显示当前盈亏；点好友头像快捷记一笔（收款人预置为该好友）；
+ * 删除：房主可删除牌局记录（连同全部流水，需二次确认）。
  */
 
 const roomService = require('../../services/room-service')
@@ -10,13 +12,25 @@ const entryService = require('../../services/entry-service')
 const inviteService = require('../../services/invite-service')
 const { friendlyMessage } = require('../../utils/error-message')
 const { formatDateTime } = require('../../utils/date')
+const { formatCents } = require('../../shared/money')
+const { ErrorCodes } = require('../../shared/errors')
 const { ROOM_POLL_INTERVAL_MS: POLL_INTERVAL_MS } = require('../../config/env')
 
 const ENTRY_PAGE_SIZE = 20
 
+/** 净额 → 头像下方展示（正红负绿灰零，符号在文本中） */
+function toPlDisplay(totalCents) {
+  const total = Number.isInteger(totalCents) ? totalCents : 0
+  return {
+    plText: formatCents(total, { sign: 'always', currency: true }),
+    plTone: total > 0 ? 'plus' : total < 0 ? 'minus' : 'zero'
+  }
+}
+
 Page({
   data: {
     roomId: '',
+    meOpenid: '',
     loading: true,
     error: null, // { code, message }
     room: null, // { roomId,name,inviteCode,ownerOpenid,status,memberCount,createdAt,endedAt }
@@ -26,7 +40,7 @@ Page({
     entriesPage: 1, // recentEntries 已覆盖第 0 页
     entriesHasMore: false,
     loadingMore: false,
-    permissions: null, // { canAddEntry, canEndRoom, canInvite }
+    permissions: null, // { canAddEntry, canEndRoom, canInvite, canDeleteRoom }
     createdAtStr: '',
     endedReadonly: false,
     submitting: false,
@@ -48,7 +62,9 @@ Page({
       return
     }
     this._pendingOpenInvite = options.openInvite === '1'
-    this.setData({ roomId })
+    const app = getApp()
+    const meOpenid = ((app && app.globalData && app.globalData.user) || {}).openid || ''
+    this.setData({ roomId, meOpenid })
   },
 
   onShow() {
@@ -74,19 +90,28 @@ Page({
       const res = await roomService.getRoomDetail(this.data.roomId)
       const room = res.room
       const recent = res.recentEntries || []
+      const permissions = res.permissions || {}
+      // 结算净额映射，用于成员头像下方盈亏展示
+      const totalsByOpenid = {}
+      ;(res.settlement || []).forEach((s) => {
+        totalsByOpenid[s.openid] = s.totalCents
+      })
+      const canTapMember = Boolean(permissions.canAddEntry) && room.status === 'active'
       this.setData({
         loading: false,
         error: null,
         room,
         members: (res.members || []).map((m) => ({
           ...m,
-          isOwner: m.openid === room.ownerOpenid
+          isOwner: m.openid === room.ownerOpenid,
+          ...toPlDisplay(totalsByOpenid[m.openid]),
+          tappable: canTapMember && m.openid !== this.data.meOpenid
         })),
         settlement: res.settlement || [],
         entries: recent,
         entriesPage: 1,
         entriesHasMore: recent.length >= ENTRY_PAGE_SIZE,
-        permissions: res.permissions || {},
+        permissions,
         createdAtStr: formatDateTime(room.createdAt),
         endedReadonly: room.status === 'ended',
         inviteCode: room.inviteCode
@@ -157,6 +182,18 @@ Page({
 
   tapAddEntry() {
     wx.navigateTo({ url: `/pages/entry/entry?roomId=${this.data.roomId}` })
+  },
+
+  /**
+   * 点击成员头像：快捷记一笔（付款人默认自己、收款人预置为该好友）。
+   * 自己 / 已结束 / 无记账权限时不响应。
+   */
+  tapMember(e) {
+    const openid = (e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.openid) || ''
+    if (!openid || openid === this.data.meOpenid) return
+    if (!this.data.permissions || !this.data.permissions.canAddEntry) return
+    if (this.data.endedReadonly) return
+    wx.navigateTo({ url: `/pages/entry/entry?roomId=${this.data.roomId}&payee=${openid}` })
   },
 
   // ---------------- 邀请 ----------------
@@ -231,6 +268,42 @@ Page({
       await this.loadDetail({ silent: false })
     } catch (err) {
       this.setData({ submitting: false })
+      wx.showToast({ title: friendlyMessage(err), icon: 'none' })
+    }
+  },
+
+  // ---------------- 删除牌局记录（仅房主） ----------------
+
+  tapDelete() {
+    if (!this.data.permissions || !this.data.permissions.canDeleteRoom) return
+    wx.showModal({
+      title: '删除牌局',
+      content: '删除后该牌局及全部输赢流水将被清除，所有成员都不再看到，且无法恢复。确认删除？',
+      confirmText: '确认删除',
+      cancelText: '取消',
+      success: (res) => {
+        if (res && res.confirm) this.doDelete()
+      }
+    })
+  },
+
+  async doDelete() {
+    if (this.data.submitting) return
+    this.setData({ submitting: true })
+    try {
+      await roomService.deleteRoom(this.data.roomId)
+      this.setData({ submitting: false })
+      this.stopPolling()
+      wx.showToast({ title: '已删除', icon: 'success' })
+      wx.navigateBack()
+    } catch (err) {
+      this.setData({ submitting: false })
+      // 已被房主之外并发删除：当作成功返回列表
+      if (err && err.code === ErrorCodes.ROOM_NOT_FOUND) {
+        this.stopPolling()
+        wx.navigateBack()
+        return
+      }
       wx.showToast({ title: friendlyMessage(err), icon: 'none' })
     }
   }

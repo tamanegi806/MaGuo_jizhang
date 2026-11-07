@@ -117,10 +117,40 @@
   text-overflow: ellipsis;
 }
 
+/* 头像下方当前盈亏：正红负绿零灰，符号在文本中（A11） */
+.members__pl {
+  margin-top: 4rpx;
+  font-size: var(--font-size-sm);
+}
+
+.members__pl--plus {
+  color: var(--color-danger);
+}
+
+.members__pl--minus {
+  color: var(--color-success);
+}
+
+.members__pl--zero {
+  color: var(--color-text-secondary);
+}
+
 .members__owner {
   margin-top: 4rpx;
   font-size: 20rpx;
   color: var(--color-primary);
+}
+
+/* 可点头像快捷记一笔的反馈提示 */
+.members__item--tappable .members__avatar {
+  border: 2rpx solid var(--color-primary);
+}
+
+.members__hint {
+  display: block;
+  margin-top: 12rpx;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
 }
 
 .entries__card {
@@ -148,7 +178,6 @@
 
 .actions__add {
   flex: 1;
-  margin-right: 16rpx;
   min-height: 96rpx; /* ≥44px */
   font-size: var(--font-size-lg);
   border-radius: var(--radius-base);
@@ -156,9 +185,20 @@
 
 .actions__end {
   flex: 1;
+  margin-left: 16rpx;
   min-height: 96rpx; /* ≥44px */
   font-size: var(--font-size-lg);
   color: var(--color-danger);
   border: 1rpx solid var(--color-danger);
+  border-radius: var(--radius-base);
+}
+
+.actions__delete {
+  flex: 1;
+  margin-left: 16rpx;
+  min-height: 96rpx; /* ≥44px */
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  border: 1rpx solid var(--color-border);
   border-radius: var(--radius-base);
 }

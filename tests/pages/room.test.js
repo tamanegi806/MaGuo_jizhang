@@ -8,7 +8,8 @@ jest.mock('../../miniprogram/services/room-service', () => ({
   createRoom: jest.fn(),
   joinRoom: jest.fn(),
   getRoomDetail: jest.fn(),
-  endRoom: jest.fn()
+  endRoom: jest.fn(),
+  deleteRoom: jest.fn()
 }))
 jest.mock('../../miniprogram/services/entry-service', () => ({
   addEntry: jest.fn(),
@@ -72,7 +73,8 @@ function detailFixture({ status = 'active', recent = [entryFixture(1), entryFixt
     permissions: permissions || {
       canAddEntry: status === 'active',
       canEndRoom: status === 'active' && true,
-      canInvite: status === 'active'
+      canInvite: status === 'active',
+      canDeleteRoom: true // 房主（o_me）任何状态下均可删除
     }
   }
 }
@@ -269,6 +271,88 @@ describe('pages/room', () => {
     const inst = await openRoom()
     inst.tapAddEntry()
     expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/entry/entry?roomId=r_1' })
+  })
+
+  test('成员行带当前盈亏：文本、符号、色调、可点标记', async () => {
+    roomService.getRoomDetail.mockResolvedValue(detailFixture())
+    const inst = await openRoom()
+    const me = inst.data.members[0]
+    const friend = inst.data.members[1]
+    // 自己 -100 分：绿色带负号，不可点（自己）
+    expect(me.plText).toBe('-¥1.00')
+    expect(me.plTone).toBe('minus')
+    expect(me.tappable).toBe(false)
+    // 好友 +100 分：红色带正号，可点
+    expect(friend.plText).toBe('+¥1.00')
+    expect(friend.plTone).toBe('plus')
+    expect(friend.tappable).toBe(true)
+  })
+
+  test('点击好友头像 -> 携带 payee 进入记一笔', async () => {
+    roomService.getRoomDetail.mockResolvedValue(detailFixture())
+    const inst = await openRoom()
+    inst.tapMember({ currentTarget: { dataset: { openid: 'o_b' } } })
+    expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/entry/entry?roomId=r_1&payee=o_b' })
+  })
+
+  test('点击自己头像不跳转', async () => {
+    roomService.getRoomDetail.mockResolvedValue(detailFixture())
+    const inst = await openRoom()
+    inst.tapMember({ currentTarget: { dataset: { openid: 'o_me' } } })
+    expect(wx.navigateTo).not.toHaveBeenCalled()
+  })
+
+  test('已结束牌局点击成员头像不跳转', async () => {
+    roomService.getRoomDetail.mockResolvedValue(detailFixture({ status: 'ended' }))
+    const inst = await openRoom()
+    inst.tapMember({ currentTarget: { dataset: { openid: 'o_b' } } })
+    expect(wx.navigateTo).not.toHaveBeenCalled()
+    expect(inst.data.members[1].tappable).toBe(false)
+  })
+
+  test('房主删除：确认 -> deleteRoom -> 停轮询返回', async () => {
+    roomService.getRoomDetail.mockResolvedValue(detailFixture())
+    const inst = await openRoom()
+    roomService.deleteRoom.mockResolvedValue({ roomId: 'r_1', deleted: true, deletedEntries: 2 })
+
+    inst.tapDelete()
+    await flushPromises()
+    expect(roomService.deleteRoom).toHaveBeenCalledWith('r_1')
+    expect(wx.showToast).toHaveBeenCalledWith({ title: '已删除', icon: 'success' })
+    expect(intervalSpy.cleared).toBe(true)
+    expect(wx.navigateBack).toHaveBeenCalled()
+  })
+
+  test('删除：取消不发请求', async () => {
+    wx.showModal.mockImplementation((o) => o.success({ confirm: false, cancel: true }))
+    roomService.getRoomDetail.mockResolvedValue(detailFixture())
+    const inst = await openRoom()
+    inst.tapDelete()
+    await flushPromises()
+    expect(roomService.deleteRoom).not.toHaveBeenCalled()
+    expect(wx.navigateBack).not.toHaveBeenCalled()
+  })
+
+  test('无删除权限点击删除 -> 不弹确认', async () => {
+    roomService.getRoomDetail.mockResolvedValue(
+      detailFixture({
+        permissions: { canAddEntry: true, canEndRoom: false, canInvite: true, canDeleteRoom: false }
+      })
+    )
+    const inst = await openRoom()
+    inst.tapDelete()
+    expect(wx.showModal).not.toHaveBeenCalled()
+    expect(roomService.deleteRoom).not.toHaveBeenCalled()
+  })
+
+  test('删除遇到 ROOM_NOT_FOUND（并发已删）-> 静默返回', async () => {
+    roomService.getRoomDetail.mockResolvedValue(detailFixture())
+    const inst = await openRoom()
+    roomService.deleteRoom.mockRejectedValue({ code: 2001, message: 'ROOM_NOT_FOUND' })
+    inst.tapDelete()
+    await flushPromises()
+    expect(wx.showToast).not.toHaveBeenCalled()
+    expect(wx.navigateBack).toHaveBeenCalled()
   })
 
   test('权限缺失时不打开邀请', async () => {

@@ -46,4 +46,15 @@ function canInvite(openid, room) {
   return room.status === 'active' && room.memberOpenids.includes(openid)
 }
 
-module.exports = { canViewRoom, canAddEntry, canEndRoom, canInvite }
+/**
+ * 判断能否删除牌局记录（仅房主；进行中与已结束均可，删除需二次确认）
+ * @param {string} openid
+ * @param {object|null} room
+ * @returns {boolean}
+ */
+function canDeleteRoom(openid, room) {
+  if (!room || !openid) return false
+  return room.ownerOpenid === openid
+}
+
+module.exports = { canViewRoom, canAddEntry, canEndRoom, canInvite, canDeleteRoom }

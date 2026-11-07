@@ -2,7 +2,7 @@
  * 权限判定单元测试 — M3
  */
 
-const { canViewRoom, canAddEntry, canEndRoom, canInvite } = require('../../shared/permissions')
+const { canViewRoom, canAddEntry, canEndRoom, canInvite, canDeleteRoom } = require('../../shared/permissions')
 
 const activeRoom = {
   _id: 'room1',
@@ -71,17 +71,34 @@ describe('canInvite', () => {
   })
 })
 
+describe('canDeleteRoom', () => {
+  test('M3-10 房主删除，进行中 -> true', () => {
+    expect(canDeleteRoom('owner_openid', activeRoom)).toBe(true)
+  })
+  test('M3-11 房主删除，已结束 -> true（历史记录清理）', () => {
+    expect(canDeleteRoom('owner_openid', endedRoom)).toBe(true)
+  })
+  test('M3-12 成员删除 -> false', () => {
+    expect(canDeleteRoom('member_openid', activeRoom)).toBe(false)
+  })
+  test('非成员删除 -> false', () => {
+    expect(canDeleteRoom('stranger', activeRoom)).toBe(false)
+  })
+})
+
 describe('异常输入', () => {
   test('room=null 所有函数返回 false', () => {
     expect(canViewRoom('oid', null)).toBe(false)
     expect(canAddEntry('oid', null)).toBe(false)
     expect(canEndRoom('oid', null)).toBe(false)
     expect(canInvite('oid', null)).toBe(false)
+    expect(canDeleteRoom('oid', null)).toBe(false)
   })
   test('openid="" 所有函数返回 false', () => {
     expect(canViewRoom('', activeRoom)).toBe(false)
     expect(canAddEntry('', activeRoom)).toBe(false)
     expect(canEndRoom('', activeRoom)).toBe(false)
     expect(canInvite('', activeRoom)).toBe(false)
+    expect(canDeleteRoom('', activeRoom)).toBe(false)
   })
 })

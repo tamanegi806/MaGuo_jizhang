@@ -69,9 +69,9 @@ beforeEach(() => {
   })
 })
 
-async function openEntry() {
+async function openEntry(options = { roomId: 'r_1' }) {
   const inst = createInstance(opts)
-  inst.onLoad({ roomId: 'r_1' })
+  inst.onLoad(options)
   await flushPromises()
   return inst
 }
@@ -90,6 +90,40 @@ describe('pages/entry', () => {
     inst.onLoad({})
     await flushPromises()
     expect(inst.data.error.message).toBe('缺少牌局参数')
+  })
+
+  test('payee 参数 -> 付款人默认自己、收款人预置为好友', async () => {
+    roomService.getRoomDetail.mockResolvedValue(detailFixture())
+    const inst = await openEntry({ roomId: 'r_1', payee: 'o_b' })
+    expect(inst.data.fromOpenid).toBe('o_me')
+    expect(inst.data.toOpenid).toBe('o_b')
+    // 金额未填，canSave 仍为 false
+    expect(inst.data.canSave).toBe(false)
+    inst.onAmountChange({ detail: { valueCents: 2000 } })
+    expect(inst.data.canSave).toBe(true)
+    expect(inst.data.preview).toEqual({ fromName: '我', toName: '小王', amountText: '¥20.00' })
+  })
+
+  test('payee 非成员或与付款人相同 -> 忽略预置', async () => {
+    roomService.getRoomDetail.mockResolvedValue(detailFixture())
+    const ghost = await openEntry({ roomId: 'r_1', payee: 'o_ghost' })
+    expect(ghost.data.toOpenid).toBe('')
+
+    const self = await openEntry({ roomId: 'r_1', payee: 'o_me' })
+    expect(self.data.toOpenid).toBe('')
+  })
+
+  test('payee 预置后保存成功 -> 收款人清空不回填（连续录入按默认逻辑）', async () => {
+    roomService.getRoomDetail.mockResolvedValue(detailFixture())
+    const inst = await openEntry({ roomId: 'r_1', payee: 'o_c' })
+    expect(inst.data.toOpenid).toBe('o_c')
+    inst.onAmountChange({ detail: { valueCents: 100 } })
+    entryService.addEntry.mockResolvedValue({ entry: {}, duplicated: false })
+    await inst.onSave()
+    expect(entryService.addEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ fromOpenid: 'o_me', toOpenid: 'o_c' })
+    )
+    expect(inst.data.toOpenid).toBe('')
   })
 
   test('当前用户不在成员中 -> 付款人回退房主', async () => {

@@ -7,6 +7,7 @@ const handlers = require('../../cloudfunctions/room/handlers')
 const { AppError, ErrorCodes } = require('../../shared/errors')
 const { computeSettlement } = require('../../shared/settlement')
 const { INVITE_CODE_ALPHABET } = require('../../shared/constants')
+const { isValidCodeFormat } = require('../../shared/invite-code')
 const { FakeUserRepo, FakeRoomRepo, FakeEntryRepo } = require('../helpers/fake-repos')
 
 const OWNER = 'o_owner_openid_1'
@@ -93,13 +94,13 @@ describe('create', () => {
     expect(room.createdByRequestId).toBe('req_000001')
   })
 
-  test('ROOM-02 空名称 -> INVALID_PARAM', async () => {
+  test('ROOM-02 名称缺省/空白 -> 创建成功且 name 为空串（v1.4 起名称可选）', async () => {
     const ctx = makeCtx()
     await seedUser(ctx.userRepo, OWNER, '张三')
-    await expectCode(
-      () => handlers.create({ name: '   ', clientRequestId: 'req_1' }, ctx),
-      ErrorCodes.INVALID_PARAM
-    )
+    const r1 = await handlers.create({ clientRequestId: 'req_noname' }, ctx)
+    expect(r1.room.name).toBe('')
+    const r2 = await handlers.create({ name: '   ', clientRequestId: 'req_ws' }, ctx)
+    expect(r2.room.name).toBe('')
   })
 
   test('ROOM-02b 名称 31 字 -> INVALID_PARAM', async () => {
@@ -161,6 +162,21 @@ describe('create', () => {
         ),
       ErrorCodes.INTERNAL_ERROR
     )
+  })
+
+  test('ROOM-04c 未注入 rng -> 内置随机源可连续创建不同码（回归：曾恒生成 222222 导致第二次创建 INTERNAL_ERROR）', async () => {
+    const ctx = makeCtx() // 不提供 ctx.rng，走 handlers 内置 defaultRng
+    await seedUser(ctx.userRepo, OWNER, '张三')
+    const codes = []
+    for (let i = 0; i < 10; i++) {
+      const res = await handlers.create(
+        { name: `默认随机局 ${i}`, clientRequestId: `req_def_${i}` },
+        ctx
+      )
+      codes.push(res.room.inviteCode)
+    }
+    codes.forEach((c) => expect(isValidCodeFormat(c)).toBe(true))
+    expect(new Set(codes).size).toBeGreaterThan(1)
   })
 
   test('并发幂等冲突 -> 重查命中已有房间', async () => {
@@ -379,7 +395,12 @@ describe('detail', () => {
     expect(res.recentEntries[0].amountText).toBe('¥50.00')
 
     // 权限（房主、进行中）
-    expect(res.permissions).toEqual({ canAddEntry: true, canEndRoom: true, canInvite: true })
+    expect(res.permissions).toEqual({
+      canAddEntry: true,
+      canEndRoom: true,
+      canInvite: true,
+      canDeleteRoom: true
+    })
   })
 
   test('ROOM-16 无流水成员 -> 结算净额 0 仍出现', async () => {
@@ -397,7 +418,12 @@ describe('detail', () => {
     const ctx = { ...makeCtx(repos), openid: OWNER }
     const res = await handlers.detail({ roomId: repos.room._id }, ctx)
     expect(res.room.status).toBe('ended')
-    expect(res.permissions).toEqual({ canAddEntry: false, canEndRoom: false, canInvite: false })
+    expect(res.permissions).toEqual({
+      canAddEntry: false,
+      canEndRoom: false,
+      canInvite: false,
+      canDeleteRoom: true // 房主仍可清理历史记录
+    })
   })
 })
 
@@ -447,5 +473,65 @@ describe('end', () => {
     const { roomRepo } = await seeded()
     const ctx = { ...makeCtx({ roomRepo }), openid: OWNER }
     await expectCode(() => handlers.end({ roomId: 'r_ghost' }, ctx), ErrorCodes.ROOM_NOT_FOUND)
+  })
+})
+
+describe('remove', () => {
+  async function seededWithEntries(status = 'active') {
+    const roomRepo = new FakeRoomRepo()
+    const entryRepo = new FakeEntryRepo()
+    const room = await roomRepo.seed({
+      name: '删除局',
+      ownerOpenid: OWNER,
+      memberOpenids: [OWNER, MEMBER_B],
+      members: [{ openid: OWNER, joinedAt: 1 }, { openid: MEMBER_B, joinedAt: 2 }],
+      status,
+      inviteCode: 'R12345',
+      createdByRequestId: 'rm1',
+      createdAt: 1000,
+      updatedAt: 1000,
+      endedAt: status === 'ended' ? 2000 : null
+    })
+    await entryRepo.insert({ roomId: room._id, fromOpenid: OWNER, toOpenid: MEMBER_B, amountCents: 5000, createdBy: OWNER, createdAt: 2000 })
+    await entryRepo.insert({ roomId: room._id, fromOpenid: MEMBER_B, toOpenid: OWNER, amountCents: 3000, createdBy: OWNER, createdAt: 2100 })
+    await entryRepo.insert({ roomId: 'r_other', fromOpenid: OWNER, toOpenid: MEMBER_B, amountCents: 100, createdBy: OWNER, createdAt: 2200 })
+    return { roomRepo, entryRepo, room }
+  }
+
+  test('ROOM-21 房主删除进行中 -> 房间与流水清除，他牌局流水保留', async () => {
+    const { roomRepo, entryRepo, room } = await seededWithEntries()
+    const ctx = { ...makeCtx({ roomRepo, entryRepo }), openid: OWNER }
+    const res = await handlers.remove({ roomId: room._id }, ctx)
+    expect(res).toEqual({ roomId: room._id, deleted: true, deletedEntries: 2 })
+    expect(await roomRepo.findById(room._id)).toBeNull()
+    expect(await entryRepo.countByRoom(room._id)).toBe(0)
+    expect(await entryRepo.countByRoom('r_other')).toBe(1) // 不误删他牌局流水
+  })
+
+  test('ROOM-22 房主删除已结束牌局 -> 成功（历史清理）', async () => {
+    const { roomRepo, entryRepo, room } = await seededWithEntries('ended')
+    const ctx = { ...makeCtx({ roomRepo, entryRepo }), openid: OWNER }
+    const res = await handlers.remove({ roomId: room._id }, ctx)
+    expect(res.deleted).toBe(true)
+    expect(await roomRepo.findById(room._id)).toBeNull()
+  })
+
+  test('ROOM-23 非房主删除 -> NOT_ROOM_OWNER', async () => {
+    const { roomRepo, entryRepo, room } = await seededWithEntries()
+    const ctx = { ...makeCtx({ roomRepo, entryRepo }), openid: MEMBER_B }
+    await expectCode(() => handlers.remove({ roomId: room._id }, ctx), ErrorCodes.NOT_ROOM_OWNER)
+    expect(await roomRepo.findById(room._id)).not.toBeNull() // 未删除
+    expect(await entryRepo.countByRoom(room._id)).toBe(2)
+  })
+
+  test('ROOM-24 删除不存在的牌局 -> ROOM_NOT_FOUND', async () => {
+    const { roomRepo } = await seededWithEntries()
+    const ctx = { ...makeCtx({ roomRepo }), openid: OWNER }
+    await expectCode(() => handlers.remove({ roomId: 'r_ghost' }, ctx), ErrorCodes.ROOM_NOT_FOUND)
+  })
+
+  test('缺少 roomId -> INVALID_PARAM', async () => {
+    const ctx = makeCtx()
+    await expectCode(() => handlers.remove({}, ctx), ErrorCodes.INVALID_PARAM)
   })
 })

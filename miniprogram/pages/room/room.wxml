@@ -10,7 +10,7 @@
   <block wx:if="{{room}}">
     <view class="room-head">
       <view class="room-head__row">
-        <text class="room-head__name">{{room.name}}</text>
+        <text class="room-head__name">{{room.name || '牌局'}}</text>
         <text class="room-head__status {{room.status === 'ended' ? 'room-head__status--ended' : ''}}">{{room.status === 'ended' ? '已结束' : '进行中'}}</text>
       </view>
       <text class="room-head__meta">创建于 {{createdAtStr}} · {{room.memberCount}}人</text>
@@ -24,12 +24,20 @@
     <view class="section">
       <text class="section__title">成员</text>
       <scroll-view scroll-x class="members" enable-flex>
-        <view wx:for="{{members}}" wx:key="openid" class="members__item">
+        <view
+          wx:for="{{members}}"
+          wx:key="openid"
+          class="members__item {{item.tappable ? 'members__item--tappable' : ''}}"
+          data-openid="{{item.openid}}"
+          bindtap="tapMember"
+        >
           <image class="members__avatar" src="{{item.avatarFileID || ''}}" mode="aspectFill" />
           <text class="members__name">{{item.nickname}}</text>
+          <text class="members__pl members__pl--{{item.plTone}}">{{item.plText}}</text>
           <text wx:if="{{item.isOwner}}" class="members__owner">房主</text>
         </view>
       </scroll-view>
+      <text wx:if="{{permissions.canAddEntry && !endedReadonly}}" class="members__hint">点好友头像即可记一笔</text>
     </view>
 
     <view class="section">
@@ -53,7 +61,7 @@
       </block>
     </view>
 
-    <view wx:if="{{!endedReadonly}}" class="actions safe-area-bottom">
+    <view wx:if="{{!endedReadonly || permissions.canDeleteRoom}}" class="actions safe-area-bottom">
       <button
         wx:if="{{permissions.canAddEntry}}"
         class="actions__add"
@@ -68,6 +76,14 @@
         disabled="{{submitting}}"
         bindtap="tapEnd"
       >结束牌局</button>
+      <button
+        wx:if="{{permissions.canDeleteRoom}}"
+        class="actions__delete"
+        type="default"
+        loading="{{submitting}}"
+        disabled="{{submitting}}"
+        bindtap="tapDelete"
+      >删除牌局</button>
     </view>
   </block>
 

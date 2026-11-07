@@ -7,17 +7,17 @@ const { call } = require('./api-client')
 /**
  * 创建牌局
  * clientRequestId 由页面首次提交时生成，失败重试必须复用同一值；服务层不做隐式新键
- * @param {{name:string, clientRequestId:string}} input
+ * name 可选（v1.4 起默认不传，牌局以创建时间标识）
+ * @param {{clientRequestId:string, name?:string}} input
  * @returns {Promise<{room:object}>}
  */
 async function createRoom(input) {
   if (!input || !input.clientRequestId) {
     throw new Error('createRoom 需要页面传入 clientRequestId（服务层不隐式生成）')
   }
-  return call('room', 'create', {
-    name: input.name,
-    clientRequestId: input.clientRequestId
-  })
+  const payload = { clientRequestId: input.clientRequestId }
+  if (input.name) payload.name = input.name
+  return call('room', 'create', payload)
 }
 
 /**
@@ -55,4 +55,12 @@ async function endRoom(roomId) {
   return call('room', 'end', { roomId })
 }
 
-module.exports = { createRoom, joinRoom, listRooms, getRoomDetail, endRoom }
+/**
+ * 删除牌局记录（仅房主；连带清除全部输赢流水，不可恢复）
+ * @param {string} roomId
+ */
+async function deleteRoom(roomId) {
+  return call('room', 'remove', { roomId })
+}
+
+module.exports = { createRoom, joinRoom, listRooms, getRoomDetail, endRoom, deleteRoom }

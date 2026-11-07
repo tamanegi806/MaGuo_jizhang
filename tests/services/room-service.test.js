@@ -25,6 +25,13 @@ describe('createRoom', () => {
     expect(res.room.roomId).toBe('r_1')
   })
 
+  test('未传 name -> payload 不含 name 字段（v1.4 起名称可选）', async () => {
+    mockCall.mockResolvedValue({ room: { roomId: 'r_1' } })
+    await roomService.createRoom({ clientRequestId: 'req-abc' })
+    expect(mockCall).toHaveBeenCalledWith('room', 'create', { clientRequestId: 'req-abc' })
+    expect(mockCall.mock.calls[0][2]).not.toHaveProperty('name')
+  })
+
   test('未传 clientRequestId -> 本地抛错，不发起请求（幂等键必须页面生成）', async () => {
     await expect(roomService.createRoom({ name: 'x' })).rejects.toThrow('clientRequestId')
     expect(mockCall).not.toHaveBeenCalled()
@@ -94,5 +101,25 @@ describe('getRoomDetail / endRoom', () => {
   test('NOT_ROOM_OWNER 透传', async () => {
     mockCall.mockRejectedValue(new apiClient.ApiError(2004, 'NOT_ROOM_OWNER'))
     await expect(roomService.endRoom('r_9')).rejects.toMatchObject({ code: 2004 })
+  })
+})
+
+describe('deleteRoom', () => {
+  test('remove 透传 roomId', async () => {
+    mockCall.mockResolvedValue({ roomId: 'r_9', deleted: true, deletedEntries: 3 })
+    const res = await roomService.deleteRoom('r_9')
+    expect(mockCall).toHaveBeenCalledWith('room', 'remove', { roomId: 'r_9' })
+    expect(res.deleted).toBe(true)
+    expect(res.deletedEntries).toBe(3)
+  })
+
+  test('NOT_ROOM_OWNER 透传', async () => {
+    mockCall.mockRejectedValue(new apiClient.ApiError(2004, 'NOT_ROOM_OWNER'))
+    await expect(roomService.deleteRoom('r_9')).rejects.toMatchObject({ code: 2004 })
+  })
+
+  test('ROOM_NOT_FOUND 透传', async () => {
+    mockCall.mockRejectedValue(new apiClient.ApiError(2001, 'ROOM_NOT_FOUND'))
+    await expect(roomService.deleteRoom('r_9')).rejects.toMatchObject({ code: 2001 })
   })
 })

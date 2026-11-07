@@ -1,6 +1,6 @@
 /**
  * 页面层核查（12-pages「页面通用要求」）
- * - 只注册当前 6 页，无教程/番数路由
+ * - 只注册当前 5 页，无教程/番数路由、无独立创建页
  * - 页面不直接调用 wx.cloud / callFunction
  * - usingComponents 路径真实存在（组件四件套齐全）
  * - 页面 json 合法
@@ -8,17 +8,16 @@
 const fs = require('fs')
 const path = require('path')
 
-const PAGES = ['index', 'create', 'join', 'room', 'entry', 'profile']
+const PAGES = ['index', 'join', 'room', 'entry', 'profile']
 const pagesDir = path.join(__dirname, '../../miniprogram/pages')
 const app = JSON.parse(fs.readFileSync(path.join(__dirname, '../../miniprogram/app.json'), 'utf8'))
 
 const readIf = (p) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null)
 
 describe('pages hygiene', () => {
-  test('app.json 仅注册 6 个当前页面', () => {
+  test('app.json 仅注册 5 个当前页面（v1.4 起 create 页移除，首页直接创建）', () => {
     expect(app.pages).toEqual([
       'pages/index/index',
-      'pages/create/create',
       'pages/join/join',
       'pages/room/room',
       'pages/entry/entry',
