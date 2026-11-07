@@ -7,7 +7,6 @@
       bindtap="tapProfile"
     />
     <text class="header__title">{{user.nickname || '未设置昵称'}}</text>
-    <view class="header__join" bindtap="tapJoin">加入牌局</view>
   </view>
 
   <state-view wx:if="{{loading && rooms.length === 0}}" type="loading" />
@@ -38,6 +37,7 @@
   </view>
 
   <view class="footer safe-area-bottom">
+    <button class="footer__join" bindtap="tapJoin">加入牌局</button>
     <button class="footer__create" type="primary" bindtap="tapCreate" loading="{{creating}}" disabled="{{creating}}">＋ 创建牌局</button>
   </view>
 </view>

@@ -1,5 +1,5 @@
 /**
- * entry 云函数处理器测试 — 内存仓储，覆盖 ENTRY-01 ~ ENTRY-14
+ * entry 云函数处理器测试 — 内存仓储，覆盖 ENTRY-01 ~ ENTRY-16
  */
 
 const handlers = require('../../cloudfunctions/entry/handlers')
@@ -212,6 +212,25 @@ describe('add', () => {
     const w = await buildWorld()
     const res = await handlers.add(validInput({ roomId: w.room._id, toOpenid: C }), w.ctx)
     expect(res.entry.toNickname).toBe(`玩家${C.slice(-4)}`)
+  })
+
+  test('ENTRY-15 v1.6 房主代记他人付款（B→C）-> PAYER_NOT_SELF，且未写入', async () => {
+    const w = await buildWorld() // w.ctx.openid = A（房主）
+    await expectCode(
+      () => handlers.add(validInput({ roomId: w.room._id, fromOpenid: B, toOpenid: C }), w.ctx),
+      ErrorCodes.PAYER_NOT_SELF
+    )
+    expect(await w.entryRepo.countByRoom(w.room._id)).toBe(0)
+  })
+
+  test('ENTRY-16 v1.6 任意成员记自己付出的账（自己→他人）-> 成功', async () => {
+    const w = await buildWorld()
+    const res = await handlers.add(
+      validInput({ roomId: w.room._id, fromOpenid: B, toOpenid: C }),
+      { ...w.ctx, openid: B }
+    )
+    expect(res.duplicated).toBe(false)
+    expect(res.entry.fromOpenid).toBe(B)
   })
 })
 

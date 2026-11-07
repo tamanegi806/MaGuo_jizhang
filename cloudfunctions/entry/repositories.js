@@ -73,7 +73,11 @@ function createRepositories(db, _) {
         await transaction.commit()
         return { status: 'created', entry: { ...data, _id: added._id } }
       } catch (err) {
-        await transaction.rollback()
+        try {
+          await transaction.rollback()
+        } catch (_) {
+          // 回滚失败不掩盖原始异常
+        }
         // 唯一索引（roomId + clientRequestId）冲突 -> 幂等重查路径
         if (isUniqueConflict(err)) {
           return { status: 'duplicate' }

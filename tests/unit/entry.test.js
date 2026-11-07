@@ -114,6 +114,27 @@ describe('validateEntry', () => {
   test('不抛业务异常', () => {
     expect(() => validateEntry({}, null)).not.toThrow()
   })
+
+  // ── v1.6：付款人必须是记录者本人 ──────────────────────
+  test('M4-11 提供 actor 且付款人=actor -> ok', () => {
+    expect(validateEntry(valid, { ...ctx, actorOpenid: 'alice' })).toEqual({ ok: true })
+  })
+
+  test('M4-12 提供 actor 但付款人≠actor（付款人仍是成员）-> PAYER_NOT_SELF', () => {
+    const r = validateEntry(valid, { ...ctx, actorOpenid: 'bob' })
+    expect(r.ok).toBe(false)
+    expect(r.errors).toContain('PAYER_NOT_SELF')
+  })
+
+  test('M4-13 未提供 actorOpenid -> 跳过本人检查（向后兼容）', () => {
+    expect(validateEntry(valid, { memberOpenids: ctx.memberOpenids })).toEqual({ ok: true })
+  })
+
+  test('付款人缺失时不叠加 PAYER_NOT_SELF', () => {
+    const r = validateEntry({ toOpenid: 'bob', amountCents: 100 }, { ...ctx, actorOpenid: 'alice' })
+    expect(r.errors).toContain('INVALID_ENTRY')
+    expect(r.errors).not.toContain('PAYER_NOT_SELF')
+  })
 })
 
 describe('normalizeEntry', () => {
@@ -156,6 +177,12 @@ describe('normalizeEntry', () => {
   test('校验失败抛 AppError：INVALID_ENTRY', () => {
     expect(() => normalizeEntry({ amountCents: 5000 }, ctx)).toThrow(
       expect.objectContaining({ code: ErrorCodes.INVALID_ENTRY })
+    )
+  })
+
+  test('v1.6 校验失败抛 AppError：PAYER_NOT_SELF', () => {
+    expect(() => normalizeEntry(valid, { ...ctx, actorOpenid: 'bob' })).toThrow(
+      expect.objectContaining({ code: ErrorCodes.PAYER_NOT_SELF })
     )
   })
 })

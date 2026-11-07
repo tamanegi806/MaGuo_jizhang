@@ -394,12 +394,12 @@ describe('detail', () => {
     expect(res.recentEntries[0].createdAt).toBe(2000)
     expect(res.recentEntries[0].amountText).toBe('¥50.00')
 
-    // 权限（房主、进行中）
+    // 权限（房主、进行中；v1.5 起进行中不可删除）
     expect(res.permissions).toEqual({
       canAddEntry: true,
       canEndRoom: true,
       canInvite: true,
-      canDeleteRoom: true
+      canDeleteRoom: false
     })
   })
 
@@ -422,7 +422,7 @@ describe('detail', () => {
       canAddEntry: false,
       canEndRoom: false,
       canInvite: false,
-      canDeleteRoom: true // 房主仍可清理历史记录
+      canDeleteRoom: true // 房主 + 已结束，可清理历史记录
     })
   })
 })
@@ -498,9 +498,18 @@ describe('remove', () => {
     return { roomRepo, entryRepo, room }
   }
 
-  test('ROOM-21 房主删除进行中 -> 房间与流水清除，他牌局流水保留', async () => {
+  test('ROOM-21 房主删除进行中 -> ROOM_NOT_ENDED，数据不动（v1.5 须先结束）', async () => {
     const { roomRepo, entryRepo, room } = await seededWithEntries()
     const ctx = { ...makeCtx({ roomRepo, entryRepo }), openid: OWNER }
+    await expectCode(() => handlers.remove({ roomId: room._id }, ctx), ErrorCodes.ROOM_NOT_ENDED)
+    expect(await roomRepo.findById(room._id)).not.toBeNull()
+    expect(await entryRepo.countByRoom(room._id)).toBe(2)
+  })
+
+  test('ROOM-21b 先结束再删除 -> 房间与流水清除，他牌局流水保留', async () => {
+    const { roomRepo, entryRepo, room } = await seededWithEntries()
+    const ctx = { ...makeCtx({ roomRepo, entryRepo }), openid: OWNER }
+    await handlers.end({ roomId: room._id }, ctx)
     const res = await handlers.remove({ roomId: room._id }, ctx)
     expect(res).toEqual({ roomId: room._id, deleted: true, deletedEntries: 2 })
     expect(await roomRepo.findById(room._id)).toBeNull()

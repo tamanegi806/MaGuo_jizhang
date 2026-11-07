@@ -72,14 +72,17 @@ describe('canInvite', () => {
 })
 
 describe('canDeleteRoom', () => {
-  test('M3-10 房主删除，进行中 -> true', () => {
-    expect(canDeleteRoom('owner_openid', activeRoom)).toBe(true)
+  test('M3-10 房主删除，进行中 -> false（v1.5：须先结束）', () => {
+    expect(canDeleteRoom('owner_openid', activeRoom)).toBe(false)
   })
-  test('M3-11 房主删除，已结束 -> true（历史记录清理）', () => {
+  test('M3-11 房主删除，已结束 -> true（历史清理）', () => {
     expect(canDeleteRoom('owner_openid', endedRoom)).toBe(true)
   })
   test('M3-12 成员删除 -> false', () => {
     expect(canDeleteRoom('member_openid', activeRoom)).toBe(false)
+  })
+  test('成员删除已结束牌局 -> false', () => {
+    expect(canDeleteRoom('member_openid', endedRoom)).toBe(false)
   })
   test('非成员删除 -> false', () => {
     expect(canDeleteRoom('stranger', activeRoom)).toBe(false)

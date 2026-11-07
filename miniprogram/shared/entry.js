@@ -12,7 +12,8 @@ const { MAX_AMOUNT_CENTS } = require('./constants')
  * @param {string} input.fromOpenid
  * @param {string} input.toOpenid
  * @param {number} input.amountCents
- * @param {object} ctx - { memberOpenids: string[] }
+ * @param {object} ctx - { memberOpenids: string[], actorOpenid?: string }
+ *   actorOpenid 为记录者本人：v1.6 起付款人必须等于记录者（只允许「自己→他人」）；缺省则跳过该检查
  * @returns {{ ok: boolean, errors?: string[], data?: null }}
  */
 function validateEntry(input, ctx) {
@@ -43,6 +44,14 @@ function validateEntry(input, ctx) {
     const invalidMember = !ctx.memberOpenids.includes(from) || !ctx.memberOpenids.includes(to)
     if (invalidMember) {
       errors.push('INVALID_MEMBER')
+    }
+  }
+
+  // v1.6：付款人必须是记录者本人（只允许「自己→他人」，房主无特权；仅约束新增，历史数据不回改）
+  // ctx.actorOpenid 缺省时跳过，保持纯领域函数的向后兼容
+  if (!errors.includes('INVALID_ENTRY') && ctx && typeof ctx.actorOpenid === 'string' && ctx.actorOpenid) {
+    if (from && from !== ctx.actorOpenid) {
+      errors.push('PAYER_NOT_SELF')
     }
   }
 

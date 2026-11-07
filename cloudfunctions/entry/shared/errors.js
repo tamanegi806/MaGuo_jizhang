@@ -21,6 +21,7 @@ const ErrorCodes = {
   NOT_ROOM_MEMBER: 2003,
   NOT_ROOM_OWNER: 2004,
   ROOM_FULL: 2005,
+  ROOM_NOT_ENDED: 2006,
   INVALID_INVITE_CODE: 2007,
 
   // 流水相关 (3xxx)
@@ -28,6 +29,7 @@ const ErrorCodes = {
   SAME_PAYER_PAYEE: 3002,
   INVALID_AMOUNT: 3003,
   INVALID_MEMBER: 3004,
+  PAYER_NOT_SELF: 3005,
 
   // 参数校验 (4xxx)
   INVALID_PARAM: 4001,

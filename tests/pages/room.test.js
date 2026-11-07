@@ -74,7 +74,7 @@ function detailFixture({ status = 'active', recent = [entryFixture(1), entryFixt
       canAddEntry: status === 'active',
       canEndRoom: status === 'active' && true,
       canInvite: status === 'active',
-      canDeleteRoom: true // 房主（o_me）任何状态下均可删除
+      canDeleteRoom: status === 'ended' // v1.5：仅房主且已结束可删除
     }
   }
 }
@@ -310,8 +310,8 @@ describe('pages/room', () => {
     expect(inst.data.members[1].tappable).toBe(false)
   })
 
-  test('房主删除：确认 -> deleteRoom -> 停轮询返回', async () => {
-    roomService.getRoomDetail.mockResolvedValue(detailFixture())
+  test('房主删除（已结束牌局）：确认 -> deleteRoom -> 返回', async () => {
+    roomService.getRoomDetail.mockResolvedValue(detailFixture({ status: 'ended' }))
     const inst = await openRoom()
     roomService.deleteRoom.mockResolvedValue({ roomId: 'r_1', deleted: true, deletedEntries: 2 })
 
@@ -319,13 +319,21 @@ describe('pages/room', () => {
     await flushPromises()
     expect(roomService.deleteRoom).toHaveBeenCalledWith('r_1')
     expect(wx.showToast).toHaveBeenCalledWith({ title: '已删除', icon: 'success' })
-    expect(intervalSpy.cleared).toBe(true)
     expect(wx.navigateBack).toHaveBeenCalled()
+  })
+
+  test('进行中牌局无删除权限 -> 点击不弹确认（v1.5）', async () => {
+    roomService.getRoomDetail.mockResolvedValue(detailFixture()) // active，默认 canDeleteRoom=false
+    const inst = await openRoom()
+    inst.tapDelete()
+    await flushPromises()
+    expect(wx.showModal).not.toHaveBeenCalled()
+    expect(roomService.deleteRoom).not.toHaveBeenCalled()
   })
 
   test('删除：取消不发请求', async () => {
     wx.showModal.mockImplementation((o) => o.success({ confirm: false, cancel: true }))
-    roomService.getRoomDetail.mockResolvedValue(detailFixture())
+    roomService.getRoomDetail.mockResolvedValue(detailFixture({ status: 'ended' }))
     const inst = await openRoom()
     inst.tapDelete()
     await flushPromises()
@@ -346,7 +354,7 @@ describe('pages/room', () => {
   })
 
   test('删除遇到 ROOM_NOT_FOUND（并发已删）-> 静默返回', async () => {
-    roomService.getRoomDetail.mockResolvedValue(detailFixture())
+    roomService.getRoomDetail.mockResolvedValue(detailFixture({ status: 'ended' }))
     const inst = await openRoom()
     roomService.deleteRoom.mockRejectedValue({ code: 2001, message: 'ROOM_NOT_FOUND' })
     inst.tapDelete()

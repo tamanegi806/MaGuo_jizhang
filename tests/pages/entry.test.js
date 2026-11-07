@@ -1,5 +1,5 @@
 /**
- * 记一笔页测试 — 选人/交换/预览/幂等键生命周期/错误分支
+ * 记一笔页测试 — v1.6 付款人锁定自己/收款人/预览/幂等键生命周期/错误分支
  */
 
 jest.mock('../../miniprogram/services/room-service', () => ({
@@ -126,11 +126,17 @@ describe('pages/entry', () => {
     expect(inst.data.toOpenid).toBe('')
   })
 
-  test('当前用户不在成员中 -> 付款人回退房主', async () => {
+  test('v1.6 当前用户不在成员中 -> 付款人仍锁定自己，不再回退房主', async () => {
     globalData.user = { openid: 'o_x' }
     roomService.getRoomDetail.mockResolvedValue(detailFixture())
     const inst = await openEntry()
-    expect(inst.data.fromOpenid).toBe('o_me') // 房主
+    expect(inst.data.fromOpenid).toBe('o_x')
+    expect(inst.data.meName).toBe('我') // 成员表查无自己 -> 兜底文案
+  })
+
+  test('v1.6 付款人选择与交换入口已移除', () => {
+    expect(opts.onFromChange).toBeUndefined()
+    expect(opts.tapSwap).toBeUndefined()
   })
 
   test('已结束牌局 -> 阻止进入并返回', async () => {
@@ -155,23 +161,15 @@ describe('pages/entry', () => {
     expect(inst.data.preview).toEqual({ fromName: '我', toName: '小王', amountText: '¥50.50' })
   })
 
-  test('付款人变更为当前收款人 -> 清空收款人', async () => {
+  test('v1.6 服务端 3005 兜底 -> saveError 固定文案（旧版客户端场景）', async () => {
     roomService.getRoomDetail.mockResolvedValue(detailFixture())
     const inst = await openEntry()
     inst.onToChange({ detail: { openid: 'o_b' } })
-    inst.onFromChange({ detail: { openid: 'o_b' } })
-    expect(inst.data.fromOpenid).toBe('o_b')
-    expect(inst.data.toOpenid).toBe('')
-    expect(inst.data.canSave).toBe(false)
-  })
-
-  test('交换付款人/收款人', async () => {
-    roomService.getRoomDetail.mockResolvedValue(detailFixture())
-    const inst = await openEntry()
-    inst.onToChange({ detail: { openid: 'o_c' } })
-    inst.tapSwap()
-    expect(inst.data.fromOpenid).toBe('o_c')
-    expect(inst.data.toOpenid).toBe('o_me')
+    inst.onAmountChange({ detail: { valueCents: 100 } })
+    entryService.addEntry.mockRejectedValue({ code: 3005, message: 'PAYER_NOT_SELF' })
+    await inst.onSave()
+    expect(inst.data.saveError).toBe('只能记录自己付出去的流水')
+    expect(wx.navigateBack).not.toHaveBeenCalled()
   })
 
   test('未选齐时保存不发请求', async () => {

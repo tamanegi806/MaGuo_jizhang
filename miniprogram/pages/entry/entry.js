@@ -1,7 +1,7 @@
 /**
  * 记一笔（详细设计 6.2.5 / 6.7 / 7.3）
  * 进入页面生成 clientRequestId，重试复用、成功后换新；
- * 付款人默认当前用户；收款人排除付款人；成功后停留本页连续录入；
+ * v1.6：付款人固定为当前用户（只允许「自己→他人」，无房主特权），不提供付款人选择与交换；
  * 支持 options.payee（点好友头像进入时）预置收款人。
  */
 
@@ -20,6 +20,8 @@ Page({
     members: [],
     fromOpenid: '',
     toOpenid: '',
+    meName: '',
+    meAvatar: '',
     amountCents: 0,
     amountValue: 0, // 回填 amount-input；0 表示清空
     clientRequestId: '',
@@ -59,30 +61,27 @@ Page({
       }
       const members = res.members || []
       const me = ((getApp().globalData || {}).user || {}).openid || ''
-      const hasMe = members.some((m) => m.openid === me)
-      const fromOpenid = hasMe
-        ? me
-        : room.ownerOpenid || (members[0] && members[0].openid) || ''
-      // 预置收款人：仅当其为牌局成员且不与付款人相同
+      // v1.6：付款人恒为自己（非成员已被上方权限拦截；服务端另有权威校验兜底）
+      const fromOpenid = me
+      const meMember = members.find((m) => m.openid === me) || {}
+      // 预置收款人：仅当其为牌局成员且不是自己
       const presetValid =
         this._presetPayee &&
         this._presetPayee !== fromOpenid &&
         members.some((m) => m.openid === this._presetPayee)
       const toOpenid = presetValid ? this._presetPayee : ''
-      this.setData({ loading: false, members, fromOpenid, toOpenid })
+      this.setData({
+        loading: false,
+        members,
+        fromOpenid,
+        toOpenid,
+        meName: meMember.nickname || '我',
+        meAvatar: meMember.avatarFileID || ''
+      })
       this.updateDerived()
     } catch (err) {
       this.setData({ loading: false, error: { code: err.code, message: friendlyMessage(err) } })
     }
-  },
-
-  onFromChange(e) {
-    const openid = (e.detail && e.detail.openid) || ''
-    const patch = { fromOpenid: openid }
-    // 付款人与当前收款人相同时清空收款人
-    if (this.data.toOpenid === openid) patch.toOpenid = ''
-    this.setData(patch)
-    this.updateDerived()
   },
 
   onToChange(e) {
@@ -92,14 +91,6 @@ Page({
 
   onAmountChange(e) {
     this.setData({ amountCents: e.detail.valueCents, saveError: '' })
-    this.updateDerived()
-  },
-
-  /** 一键互换付款人/收款人；未选齐时禁用 */
-  tapSwap() {
-    if (!this.data.fromOpenid || !this.data.toOpenid) return
-    const from = this.data.fromOpenid
-    this.setData({ fromOpenid: this.data.toOpenid, toOpenid: from })
     this.updateDerived()
   },
 

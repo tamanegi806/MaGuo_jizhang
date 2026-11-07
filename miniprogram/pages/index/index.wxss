@@ -21,19 +21,6 @@
   text-overflow: ellipsis;
 }
 
-.header__join {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 160rpx;
-  min-height: 88rpx; /* ≥44px */
-  padding: 0 24rpx;
-  font-size: var(--font-size-base);
-  color: var(--color-primary);
-  border: 1rpx solid var(--color-primary);
-  border-radius: var(--radius-base);
-}
-
 .room-card {
   display: block;
   margin-bottom: 24rpx;
@@ -94,13 +81,25 @@
   right: 0;
   bottom: 0;
   left: 0;
+  display: flex;
   padding: 24rpx var(--padding-base);
   background-color: #ffffff;
   box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.05);
 }
 
+.footer__join {
+  flex: 1;
+  min-height: 96rpx; /* ≥44px */
+  font-size: var(--font-size-lg);
+  border-radius: var(--radius-base);
+  color: var(--color-primary);
+  background-color: #ffffff;
+  border: 1rpx solid var(--color-primary);
+}
+
 .footer__create {
-  width: 100%;
+  flex: 1;
+  margin-left: 16rpx;
   min-height: 96rpx; /* ≥44px */
   font-size: var(--font-size-lg);
   border-radius: var(--radius-base);

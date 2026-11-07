@@ -13,19 +13,14 @@
       <view class="head__done" bindtap="tapDone">完成</view>
     </view>
 
-    <view class="picker-block">
-      <member-picker
-        members="{{members}}"
-        valueOpenid="{{fromOpenid}}"
-        excludeOpenid="{{toOpenid}}"
-        label="付款人（输家）"
-        bind:change="onFromChange"
-      />
-    </view>
-
-    <view class="swap {{fromOpenid && toOpenid ? '' : 'swap--disabled'}}" bindtap="tapSwap">
-      <text class="swap__icon">⇅</text>
-      <text class="swap__text">交换</text>
+    <!-- v1.6：付款人固定为自己，不可选择（只允许「自己→他人」） -->
+    <view class="payer-block">
+      <text class="payer-block__label">付款人（输家）</text>
+      <view class="payer-block__body">
+        <image class="payer-block__avatar" src="{{meAvatar}}" mode="aspectFill" />
+        <text class="payer-block__name">{{meName}}</text>
+        <text class="payer-block__hint">只能记你付出去的账</text>
+      </view>
     </view>
 
     <view class="picker-block">

@@ -75,7 +75,7 @@ async function add(payload, ctx) {
       }
       return normalizeEntry(
         { fromOpenid: p.fromOpenid, toOpenid: p.toOpenid, amountCents: p.amountCents },
-        { memberOpenids: room.memberOpenids }
+        { memberOpenids: room.memberOpenids, actorOpenid: ctx.openid } // v1.6：付款人必须是记录者本人
       )
     }
   )

@@ -282,7 +282,8 @@ async function end(payload, ctx) {
 
 // ── remove（删除牌局记录）───────────────────────────────
 /**
- * 仅房主可删除；删除后牌局对所有成员不可见，其流水一并清除。
+ * 仅房主可删除，且须已结束（v1.5：进行中返回 ROOM_NOT_ENDED，避免误删正在记录的账）。
+ * 删除后牌局对所有成员不可见，其流水一并清除。
  * 顺序：先删房间文档（立即对所有成员生效），再尽力清除流水；
  * 流水清除失败不回滚（孤儿流水不可见，可重入重试清除）。
  */
@@ -297,6 +298,10 @@ async function remove(payload, ctx) {
   if (!room) throw new AppError(ErrorCodes.ROOM_NOT_FOUND, 'ROOM_NOT_FOUND')
   if (room.ownerOpenid !== ctx.openid) {
     throw new AppError(ErrorCodes.NOT_ROOM_OWNER, 'NOT_ROOM_OWNER')
+  }
+  if (room.status !== ROOM_STATUS_ENDED) {
+    // v1.5：进行中的牌局须先结束再删除，避免误删正在记录的账
+    throw new AppError(ErrorCodes.ROOM_NOT_ENDED, 'ROOM_NOT_ENDED')
   }
 
   await ctx.roomRepo.removeById(roomId)

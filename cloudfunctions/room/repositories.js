@@ -111,11 +111,18 @@ function createRepositories(db, _) {
           members: (r.members || []).concat([{ openid, joinedAt }]),
           updatedAt: joinedAt
         }
-        await transaction.collection(COLLECTIONS.COLLECTION_ROOMS).doc(roomId).update({ data: updated })
+        // 只提交变更字段：真实云数据库禁止 update data 携带 _id（整文档回写会抛原生错误 -> 5001 服务异常）
+        await transaction.collection(COLLECTIONS.COLLECTION_ROOMS).doc(roomId).update({
+          data: {
+            memberOpenids: updated.memberOpenids,
+            members: updated.members,
+            updatedAt: updated.updatedAt
+          }
+        })
         await transaction.commit()
         return { status: 'joined', room: updated }
       } catch (err) {
-        await transaction.rollback()
+        await rollbackQuietly(transaction)
         throw err
       }
     },
@@ -154,7 +161,7 @@ function createRepositories(db, _) {
         await transaction.commit()
         return { status: 'ended', room: updated }
       } catch (err) {
-        await transaction.rollback()
+        await rollbackQuietly(transaction)
         throw err
       }
     },
@@ -220,6 +227,15 @@ function createRepositories(db, _) {
     scanByRoom(roomId, cursor, batchSize) {
       return this.scanEntriesByRoom(roomId, cursor, batchSize)
     }
+  }
+}
+
+/** 回滚尽力而为：rollback 自身失败不得掩盖原始异常 */
+async function rollbackQuietly(transaction) {
+  try {
+    await transaction.rollback()
+  } catch (_) {
+    // ignore
   }
 }
 
