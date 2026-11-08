@@ -13,5 +13,6 @@
     "backgroundTextStyle": "dark"
   },
   "sitemapLocation": "sitemap.json",
+  "usePrivacyCheck": true,
   "style": "v2"
 }

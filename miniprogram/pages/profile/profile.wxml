@@ -49,5 +49,9 @@
     <text class="back__text">返回</text>
   </view>
 
-  <text class="tip">昵称将展示给牌局中的其他成员，用于区分输赢记录。</text>
+  <text class="tip">昵称与头像只展示给同一牌局里的成员，用来区分「谁给谁记账」；不填则由系统用「玩家+编号」代替。</text>
+
+  <view class="privacy" hover-class="privacy--hover" bindtap="tapPrivacyContract">
+    <text class="privacy__text">《小程序用户隐私保护指引》</text>
+  </view>
 </view>

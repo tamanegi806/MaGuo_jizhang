@@ -37,7 +37,7 @@ miniprogram/            小程序端
   pages/                index 牌局列表 · room 牌局详情 · join 加入 · profile 我的
   components/           entry-sheet 记账弹层 · invite-sheet 邀请弹层 · entry-card · amount-input · state-view
   services/             api-client + auth / room / entry / invite 四个领域服务
-  utils/                cache（TTL 内存缓存）· format · date · uuid · error-message
+  utils/                cache（TTL 内存缓存）· privacy（隐私授权）· format · date · uuid · error-message
   config/               env（云环境 ID）· assets（默认头像）
   shared/               ← 由 scripts/sync-shared.js 生成，勿直接编辑
 
@@ -51,7 +51,7 @@ cloudfunctions/         云函数（每个目录独立部署）
 
 shared/                 业务契约的单一事实源：constants · money · settlement · permissions · entry · user · invite-code · errors
 scripts/sync-shared.js  把 shared/ 与 _shared/ 同步到小程序端和各云函数目录
-tests/                  unit · services · cloud · pages · components（Jest，31 套件 / 512 用例）
+tests/                  unit · services · cloud · pages · components（Jest，32 套件 / 537 用例）
 ```
 
 每个云函数 `index.js` 只做「解析 event → 建上下文 → `dispatch({ action, payload })`」，业务在 `handlers.js`，数据库读写在 `repositories.js`，依赖全部构造注入，因此处理器测试可以用 `tests/helpers/fake-repos.js` 的内存仓储跑，无需连云环境。
@@ -62,7 +62,7 @@ tests/                  unit · services · cloud · pages · components（Jest�
 
 ```bash
 npm install
-npm test          # 31 套件 / 512 用例，全程离线
+npm test          # 32 套件 / 537 用例，全程离线
 ```
 
 1. 用微信开发者工具「导入项目」，选择**本仓库根目录**；
@@ -86,6 +86,30 @@ npm test          # 31 套件 / 512 用例，全程离线
 建议再加两个普通索引（列表与翻页都走它们）：`rooms(status, updatedAt)` —— 闲置扫描按 `updatedAt` 升序取（默认上限 500）；`entries(roomId, createdAt)` —— 流水按时间倒序分页。
 
 权限：三个集合都设为「仅创建者可读写」或直接关闭客户端权限——小程序端**不直连数据库**，一切读写都经云函数。
+
+---
+
+## 隐私与合规
+
+采集范围刻意压到最小，只有这几项：
+
+| 信息 | 来源 | 用途 |
+| --- | --- | --- |
+| `openid` | 云函数侧 `cloud.getWXContext().OPENID`，前端传的不算 | 身份、成员校验、幂等 |
+| 昵称 | 用户自己填（可跳过，兜底为「玩家+编号」） | 牌局里区分「谁给谁记账」 |
+| 头像 | 用户自己选并上传云存储（不传则用默认头像） | 同上 |
+| 牌局与流水（成员、转账对象、金额、时间） | 用户的记账行为 | 结算与历史记录 |
+
+**不采集**：手机号、地理位置、通讯录、相册（用户主动选的头像除外）、摄像头/麦克风、设备信息；无第三方 SDK、无埋点与统计上报（`wx.cloud.init` 也不带 `traceUser`）。
+
+上线前必须在微信公众平台「设置 → 服务内容声明 → 用户隐私保护指引」里勾上**昵称、头像**并写明用途——不声明，正式版的 `chooseAvatar` 与 `type="nickname"` 会被直接拦掉。代码侧的配套接线：
+
+- `app.json` 开启 `usePrivacyCheck`；
+- `miniprogram/utils/privacy.js` 统一封装授权请求（未决期间共享同一个弹窗、会话内只打扰一次），页面不直接调 `wx.requirePrivacyAuthorize`；
+- 弹窗时机前置到首页 `onShow` 与资料页 `onLoad`，但**拒绝不锁功能**：列表、记账、结算照常，只有「上传头像」「保存昵称」这两个采集动作被中止；
+- 资料页底部有《小程序用户隐私保护指引》文字链（`wx.openPrivacyContract`），不用自建协议页。
+
+**已知待补**（补齐前，指引文案里别承诺）：用户侧「清除我的资料 / 注销」入口；已结束牌局的留存期限清理。
 
 ---
 

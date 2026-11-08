@@ -8,9 +8,10 @@ App({
   onLaunch() {
     // 初始化云开发
     if (wx.cloud) {
+      // v2.7：不再传 traceUser —— 它会往云开发控制台记录「哪个用户访问过」，
+      // 属于采集范围之外的信息，隐私指引里也没承诺；openid 本身由云函数取，不需要它。
       wx.cloud.init({
-        env: CLOUD_ENV_ID || wx.cloud.DYNAMIC_CURRENT_ENV,
-        traceUser: true
+        env: CLOUD_ENV_ID || wx.cloud.DYNAMIC_CURRENT_ENV
       })
     } else {
       console.error('请使用云开发基础库')

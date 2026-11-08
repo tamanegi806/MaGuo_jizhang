@@ -57,6 +57,14 @@ function createWxMock() {
     hideLoading: jest.fn(),
     setClipboardData: jest.fn(),
     stopPullDownRefresh: jest.fn(),
+    // v2.7 隐私接口：默认「已同意」，与现行基础库一致；用例里按需改成 fail
+    // 注意 utils/privacy 有会话级状态，用例间须调用 privacy.resetSession() 隔离
+    requirePrivacyAuthorize: jest.fn((opts) => {
+      if (opts && typeof opts.success === 'function') opts.success()
+    }),
+    openPrivacyContract: jest.fn((opts) => {
+      if (opts && typeof opts.success === 'function') opts.success()
+    }),
     // 默认确认；测试可覆盖
     showModal: jest.fn((opts) => {
       if (opts && typeof opts.success === 'function') opts.success({ confirm: true, cancel: false })

@@ -12,6 +12,7 @@ jest.mock('../../miniprogram/services/room-service', () => ({
 
 const roomService = require('../../miniprogram/services/room-service')
 const cache = require('../../miniprogram/utils/cache')
+const privacy = require('../../miniprogram/utils/privacy')
 const {
   loadPageOptions,
   createInstance,
@@ -45,6 +46,7 @@ let globalData
 beforeEach(() => {
   jest.clearAllMocks()
   cache.clearAll() // v2.5 内存缓存为模块级状态，用例间须隔离
+  privacy.resetSession() // v2.7 隐私授权会话状态同为模块级，须一并隔离
   wx = createWxMock()
   global.wx = wx
   globalData = mockGetApp({ user: { openid: 'o_me', nickname: '我', profileComplete: true }, needProfile: false })
@@ -247,6 +249,53 @@ describe('pages/index', () => {
       expect(inst.data.loading).toBe(true) // 未命中缓存：保持旧行为
       await flushPromises()
       expect(inst.data.loading).toBe(false)
+    })
+  })
+
+  describe('v2.7 隐私授权前置', () => {
+    test('首次 onShow 即触发授权弹窗，且不推迟列表请求', async () => {
+      wx.requirePrivacyAuthorize = jest.fn(({ success }) => success())
+      roomService.listRooms.mockResolvedValue({ items: [roomSummary()], hasMore: false })
+      const inst = createInstance(opts)
+      inst.onShow()
+      // 同步即已发出列表请求：弹窗不该挡首屏
+      expect(roomService.listRooms).toHaveBeenCalledTimes(1)
+      expect(wx.requirePrivacyAuthorize).toHaveBeenCalledTimes(1)
+      await flushPromises()
+      expect(inst.data.rooms).toHaveLength(1)
+    })
+
+    test('会话内二次 onShow 不再重复打扰', async () => {
+      wx.requirePrivacyAuthorize = jest.fn(({ success }) => success())
+      roomService.listRooms.mockResolvedValue({ items: [], hasMore: false })
+      const inst = createInstance(opts)
+      inst.onShow()
+      await flushPromises()
+      inst.onShow()
+      await flushPromises()
+      expect(wx.requirePrivacyAuthorize).toHaveBeenCalledTimes(1)
+    })
+
+    test('拒绝授权不锁死功能：列表照常渲染、不进错误页', async () => {
+      wx.requirePrivacyAuthorize = jest.fn(({ fail }) => fail(new Error('deny')))
+      roomService.listRooms.mockResolvedValue({ items: [roomSummary()], hasMore: false })
+      const inst = createInstance(opts)
+      await shown(inst)
+      expect(inst.data.rooms).toHaveLength(1)
+      expect(inst.data.error).toBeNull()
+      // 不在首页留任何全局状态：拒绝的后果只在采集出口（资料页）就地解释
+      expect(globalData.privacyDenied).toBeUndefined()
+    })
+
+    test('资料未完善时仍先跳资料页（跳转与授权弹窗并发，不相互等待）', async () => {
+      const hooks = {}
+      wx.requirePrivacyAuthorize = jest.fn((opts2) => { hooks.s = opts2.success })
+      globalData.needProfile = true
+      const inst = createInstance(opts)
+      inst.onShow()
+      expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/profile/profile' })
+      expect(roomService.listRooms).not.toHaveBeenCalled()
+      hooks.s && hooks.s() // 收尾未决弹窗，避免 pending 泄漏到下一用例
     })
   })
 })

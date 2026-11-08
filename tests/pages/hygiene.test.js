@@ -191,4 +191,37 @@ describe('pages hygiene', () => {
     expect(js).toMatch(/endedByIdle: room\.status === 'ended' && room\.endReason === 'idle'/)
     expect(js).toMatch(/idlePrewarnText: idlePrewarnText\(room, Date\.now\(\)\)/)
   })
+
+  test('v2.7 隐私接线：弹窗前置到页面入口、采集动作前各留兜底、开关与统计口径一致', () => {
+    // 采集范围与「用户隐私保护指引」保持一致的两个开关
+    expect(app.usePrivacyCheck).toBe(true)
+    const appJs = readIf(path.join(__dirname, '../../miniprogram/app.js'))
+    // traceUser 会往云开发控制台记录「谁访问过」，属于指引里没承诺的采集，不开
+    expect(appJs).not.toMatch(/traceUser:\s*true/)
+
+    // 页面一律走 utils/privacy，不各自直接调 wx 隐私接口（否则弹窗时机与文案会散开）
+    for (const name of PAGES) {
+      const js = readIf(path.join(pagesDir, name, `${name}.js`))
+      expect(js).not.toMatch(/wx\.requirePrivacyAuthorize|wx\.openPrivacyContract/)
+    }
+    const util = readIf(path.join(__dirname, '../../miniprogram/utils/privacy.js'))
+    expect(util).toMatch(/wx\.requirePrivacyAuthorize/)
+    expect(util).toMatch(/wx\.openPrivacyContract/)
+
+    // 首页进一次即弹（不 await 列表），资料页入口也弹
+    const index = readIf(path.join(pagesDir, 'index', 'index.js'))
+    expect(index).toMatch(/privacy\.ensurePrivacyOnce\(\)/)
+    const profile = readIf(path.join(pagesDir, 'profile', 'profile.js'))
+    expect(profile).toMatch(/onLoad\(\)[\s\S]{0,400}this\.ensurePrivacy\(\)/)
+    // 采集出口两处兜底：上传头像、保存资料
+    expect(profile).toMatch(/async uploadAvatar\(tempFilePath\)[\s\S]{0,200}await this\.ensurePrivacy\(\)/)
+    expect(profile).toMatch(/async onSave[\s\S]{0,600}await this\.ensurePrivacy\(\)/)
+
+    // 指引正文入口（微信生成的那一页，不需要自建协议页）
+    const profileWxml = readIf(path.join(pagesDir, 'profile', 'profile.wxml'))
+    expect(profileWxml).toMatch(/bindtap="tapPrivacyContract"/)
+    expect(profileWxml).toMatch(/《小程序用户隐私保护指引》/)
+    const profileJs = readIf(path.join(pagesDir, 'profile', 'profile.js'))
+    expect(profileJs).toMatch(/privacy\.openPrivacyContract\(\)/)
+  })
 })

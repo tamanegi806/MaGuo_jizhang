@@ -9,6 +9,7 @@ const { friendlyMessage } = require('../../utils/error-message')
 const { formatDateTime } = require('../../utils/date')
 const { uuidv4 } = require('../../utils/uuid')
 const cache = require('../../utils/cache')
+const privacy = require('../../utils/privacy')
 const { DEFAULT_AVATAR_PATH } = require('../../config/assets')
 
 const PAGE_SIZE = 20
@@ -38,6 +39,10 @@ Page({
 
   onShow() {
     const app = getApp()
+    // v2.7 隐私授权前置：进首页就弹（会话内只打扰一次，拒绝后不在首页反复弹）。
+    // 不 await、也不拦列表：牌局列表与记账都不依赖头像昵称——「拒绝授权后不得使用其他功能」是微信明令禁止的。
+    // 拒绝的后果只在采集出口（资料页）就地解释，这里不额外加提示、不写全局状态。
+    privacy.ensurePrivacyOnce()
     // 资料未完善时引导去资料页（onShow 跳转最可靠）
     if (app.globalData.user && app.globalData.needProfile) {
       wx.navigateTo({ url: '/pages/profile/profile' })

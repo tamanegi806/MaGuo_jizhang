@@ -120,3 +120,21 @@
   line-height: 1.6;
   color: var(--color-text-tertiary);
 }
+
+/* v2.7 《小程序用户隐私保护指引》入口：微信蓝文字链，命中区 ≥44px */
+.privacy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88rpx;
+  margin-top: 8rpx;
+}
+
+.privacy--hover {
+  background-color: var(--color-pressed);
+}
+
+.privacy__text {
+  font-size: var(--font-size-sm);
+  color: var(--color-link);
+}

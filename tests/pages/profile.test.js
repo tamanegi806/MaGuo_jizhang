@@ -9,6 +9,7 @@ jest.mock('../../miniprogram/services/auth-service', () => ({
 }))
 
 const authService = require('../../miniprogram/services/auth-service')
+const privacy = require('../../miniprogram/utils/privacy')
 const {
   loadPageOptions,
   createInstance,
@@ -19,11 +20,14 @@ const {
 
 const opts = loadPageOptions('../../miniprogram/pages/profile/profile')
 
+const PRIVACY_DENIED = { code: 'PRIVACY', message: '需要同意隐私保护指引后才能继续' }
+
 let wx
 let globalData
 
 beforeEach(() => {
   jest.clearAllMocks()
+  privacy.resetSession() // utils/privacy 带会话级状态，用例间须隔离
   wx = createWxMock()
   global.wx = wx
   globalData = mockGetApp({
@@ -48,15 +52,32 @@ describe('pages/profile', () => {
     expect(later.data.isInitial).toBe(false)
   })
 
-  test('选择头像 -> uploadAvatar 并记录 fileID', async () => {
+  test('选择头像 -> 先本地预览，隐私检查通过后才上传云存储', async () => {
     authService.uploadAvatar.mockResolvedValue('cloud://avatars/o_me/1.png')
     const inst = open()
     inst.onChooseAvatar({ detail: { avatarUrl: 'wxfile://tmp_1.png' } })
-    expect(inst.data.uploading).toBe(true)
+    // 同步部分只有本地预览；上传排在授权之后（v2.7：未同意不能把图片传出手机）
+    expect(inst.data.avatarTempPath).toBe('wxfile://tmp_1.png')
+    expect(authService.uploadAvatar).not.toHaveBeenCalled()
+
     await flushPromises()
     expect(authService.uploadAvatar).toHaveBeenCalledWith('wxfile://tmp_1.png')
     expect(inst.data.avatarFileID).toBe('cloud://avatars/o_me/1.png')
     expect(inst.data.uploading).toBe(false)
+  })
+
+  test('上传进行中 uploading 置位，完成后回落', async () => {
+    let resolveUpload
+    authService.uploadAvatar.mockImplementation(() => new Promise((r) => { resolveUpload = r }))
+    const inst = open()
+    inst.onChooseAvatar({ detail: { avatarUrl: 'wxfile://x.png' } })
+    await flushPromises() // 过掉授权那一发
+    expect(inst.data.uploading).toBe(true)
+
+    resolveUpload('cloud://avatars/x.png')
+    await flushPromises()
+    expect(inst.data.uploading).toBe(false)
+    expect(inst.data.avatarFileID).toBe('cloud://avatars/x.png')
   })
 
   test('头像上传失败 -> 错误提示且不阻断昵称保存', async () => {
@@ -126,7 +147,7 @@ describe('pages/profile', () => {
     inst.onInputNickname({ detail: { value: '小明' } })
     await inst.tapSave()
     await flushPromises()
-    expect(inst.data.error).toEqual({ code: 'PRIVACY', message: '需要同意隐私保护指引后才能继续' })
+    expect(inst.data.error).toEqual(PRIVACY_DENIED)
     expect(authService.updateProfile).not.toHaveBeenCalled()
   })
 
@@ -139,5 +160,52 @@ describe('pages/profile', () => {
     await flushPromises()
     expect(wx.requirePrivacyAuthorize).toHaveBeenCalled()
     expect(authService.updateProfile).toHaveBeenCalled()
+  })
+
+  // ---- v2.7 隐私弹窗时机前置 ----
+
+  test('进资料页即请求授权，不必等点保存', async () => {
+    wx.requirePrivacyAuthorize = jest.fn(({ success }) => success())
+    const inst = open()
+    await flushPromises()
+    expect(wx.requirePrivacyAuthorize).toHaveBeenCalled()
+    expect(inst.data.error).toBeNull()
+  })
+
+  test('进资料页即被拒绝：当场给提示，且此时还没发出任何采集请求', async () => {
+    wx.requirePrivacyAuthorize = jest.fn(({ fail }) => fail(new Error('deny')))
+    const inst = open()
+    await flushPromises()
+    expect(inst.data.error).toEqual(PRIVACY_DENIED)
+    expect(authService.uploadAvatar).not.toHaveBeenCalled()
+    expect(authService.updateProfile).not.toHaveBeenCalled()
+  })
+
+  test('未同意授权时点头像：只留本地预览，不上传云存储', async () => {
+    wx.requirePrivacyAuthorize = jest.fn(({ fail }) => fail(new Error('deny')))
+    const inst = open()
+    inst.onChooseAvatar({ detail: { avatarUrl: 'wxfile://x.png' } })
+    await flushPromises()
+    expect(inst.data.avatarTempPath).toBe('wxfile://x.png')
+    expect(inst.data.uploading).toBe(false)
+    expect(authService.uploadAvatar).not.toHaveBeenCalled()
+  })
+
+  test('查看《隐私保护指引》走 openPrivacyContract，成功时不额外提示', async () => {
+    wx.openPrivacyContract = jest.fn(({ success }) => success())
+    const inst = open()
+    await inst.tapPrivacyContract()
+    expect(wx.openPrivacyContract).toHaveBeenCalled()
+    expect(wx.showToast).not.toHaveBeenCalled()
+  })
+
+  test('老基础库没有 openPrivacyContract -> 一句可操作的提示，不静默失败', async () => {
+    delete wx.openPrivacyContract
+    const inst = open()
+    await inst.tapPrivacyContract()
+    expect(wx.showToast).toHaveBeenCalledWith({
+      title: '当前微信版本过低，无法查看指引',
+      icon: 'none'
+    })
   })
 })

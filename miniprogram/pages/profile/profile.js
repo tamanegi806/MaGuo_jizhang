@@ -2,10 +2,13 @@
  * 完善资料（详细设计 6.2.6 / 7.1）
  * 头像 chooseAvatar → 上传云存储；昵称 type="nickname"；
  * 首次进入可「稍后再说」：生成临时昵称并保存兜底。
- * 网络与上传均走 services/auth-service，隐私授权为可选前置。
+ * v2.7：隐私授权前置到进入本页时（原来是填完昵称再点保存才被拦一次），并给出《隐私保护指引》入口；
+ * 上传头像与保存昵称各留一道兜底检查，避免用户还没同意就把头像传上云。
+ * 网络与上传均走 services/auth-service。
  */
 
 const authService = require('../../services/auth-service')
+const privacy = require('../../utils/privacy')
 const { friendlyMessage } = require('../../utils/error-message')
 const { tempNickname, NICKNAME_MAX_LEN } = require('../../shared/user')
 
@@ -29,9 +32,11 @@ Page({
       nickname: user && user.nickname ? user.nickname : '',
       avatarFileID: user && user.avatarFileID ? user.avatarFileID : ''
     })
+    // v2.7：进页面就把隐私弹窗问掉，别等用户填完昵称再拦（此时还没有任何采集动作）
+    this.ensurePrivacy()
   },
 
-  /** 头像选择（open-type=chooseAvatar） */
+  /** 头像选择（open-type=chooseAvatar）；实际上传前还要过一次授权 */
   onChooseAvatar(e) {
     const tempPath = e.detail && e.detail.avatarUrl
     if (!tempPath) return
@@ -39,10 +44,17 @@ Page({
     this.uploadAvatar(tempPath)
   },
 
-  async uploadAvatar(tempPath) {
+  /**
+   * 上传头像到云存储（未同意隐私授权时直接返回，不发出上传）
+   * @param {string} tempFilePath - wx.chooseMedia/chooseAvatar 得到的临时路径
+   * @returns {Promise<string|undefined>} fileID；被授权拦下时为 undefined
+   */
+  async uploadAvatar(tempFilePath) {
+    // 未同意授权就不把图片传出手机：本地预览（avatarTempPath）不算采集，允许保留
+    if (!(await this.ensurePrivacy())) return
     this.setData({ uploading: true })
     try {
-      const fileID = await authService.uploadAvatar(tempPath)
+      const fileID = await authService.uploadAvatar(tempFilePath)
       this.setData({ uploading: false, avatarFileID: fileID })
     } catch (err) {
       this.setData({
@@ -70,20 +82,23 @@ Page({
   },
 
   /**
-   * 隐私授权前置（基础库支持时；拒绝则中止保存）
+   * 隐私授权前置（v2.7 起统一走 utils/privacy：在途共享、基础库不支持时视为已同意）
+   * 拒绝则中止采集动作（上传头像 / 保存昵称），但不锁死本页与其他功能。
    * @returns {Promise<boolean>} 是否可继续
    */
   async ensurePrivacy() {
-    if (typeof wx.requirePrivacyAuthorize !== 'function') return true
-    try {
-      await new Promise((resolve, reject) =>
-        wx.requirePrivacyAuthorize({ success: resolve, fail: reject })
-      )
-      return true
-    } catch (_) {
-      this.setData({ error: { code: 'PRIVACY', message: '需要同意隐私保护指引后才能继续' } })
-      return false
-    }
+    const { ok, error } = await privacy.ensurePrivacy()
+    if (!ok) this.setData({ error })
+    return ok
+  },
+
+  /**
+   * 查看《小程序用户隐私保护指引》正文（微信后台「服务内容声明」里填的就是这一页，无需自建协议页）
+   * 老基础库没有 openPrivacyContract：给一句可操作的提示，不静默失败。
+   */
+  async tapPrivacyContract() {
+    if (await privacy.openPrivacyContract()) return
+    wx.showToast({ title: '当前微信版本过低，无法查看指引', icon: 'none' })
   },
 
   /**
@@ -103,6 +118,7 @@ Page({
       if (!nickname) return
     }
 
+    // 兜底：授权一般在进页面时就问过了，这里防的是「弹窗刚被拒绝就直接按保存」
     if (!(await this.ensurePrivacy())) return
 
     this.setData({ submitting: true, error: null })
