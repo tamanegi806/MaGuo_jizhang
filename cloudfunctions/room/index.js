@@ -26,5 +26,12 @@ exports.main = async (event) => {
     cloud,
     log: console
   }
+
+  // v2.6：定时器触发（config.json 的 autoEndIdle）走专用分发，标记 source 供 handler 鉴权
+  if (event && event.Type === 'Timer') {
+    ctx.source = 'timer'
+    return dispatch({ action: 'autoEndIdle', payload: {}, requestId: event.TriggerName }, handlers, ctx)
+  }
+
   return dispatch(event, handlers, ctx)
 }

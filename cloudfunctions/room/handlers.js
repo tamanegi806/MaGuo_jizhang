@@ -27,7 +27,7 @@ function loadInfra(name) {
 const { AppError, ErrorCodes } = loadShared('errors')
 const { normalizeCode, isValidCodeFormat, generateCode } = loadShared('invite-code')
 const { canAddEntry, canEndRoom, canInvite, canDeleteRoom } = loadShared('permissions')
-const { MAX_MEMBERS, ROOM_STATUS_ACTIVE, ROOM_STATUS_ENDED, PAGE_SIZE_ROOMS } = loadShared('constants')
+const { MAX_MEMBERS, ROOM_STATUS_ACTIVE, ROOM_STATUS_ENDED, PAGE_SIZE_ROOMS, IDLE_AUTO_END_MS, IDLE_AUTO_END_BATCH, END_REASON_OWNER, END_REASON_IDLE } = loadShared('constants')
 const { formatEntry, nicknameOf } = loadInfra('entry-format')
 
 const NAME_MAX = 30
@@ -57,8 +57,28 @@ function toSummary(room) {
     status: room.status,
     memberCount: room.memberOpenids.length,
     createdAt: room.createdAt,
-    endedAt: room.endedAt == null ? null : room.endedAt
+    endedAt: room.endedAt == null ? null : room.endedAt,
+    ...activityFields(room)
   }
+}
+
+/**
+ * v2.6 闲置自动结束相关字段（所有 room 出口统一附带）：
+ * - lastActivityAt：有效活跃时间，历史数据无此字段时回退 max(createdAt, updatedAt)
+ *   （join/记账都会推进 updatedAt/lastActivityAt，回退口径与扫描一致）
+ * - autoEndAt：进行中房间「若无新活动将自动结束」的时间点；已结束房间为 null
+ */
+function activityFields(room) {
+  const lastActivityAt = effectiveLastActivity(room)
+  const autoEndAt = room.status === ROOM_STATUS_ACTIVE ? lastActivityAt + IDLE_AUTO_END_MS : null
+  return { lastActivityAt, autoEndAt }
+}
+
+/** v2.6：房间的有效活跃时间（历史数据回退 max(createdAt, updatedAt)） */
+function effectiveLastActivity(room) {
+  return room.lastActivityAt != null
+    ? room.lastActivityAt
+    : Math.max(room.createdAt || 0, room.updatedAt || 0)
 }
 
 function requireOpenid(ctx) {
@@ -103,10 +123,12 @@ async function create(payload, ctx) {
     createdByRequestId: clientRequestId,
     createdAt: ctx.now(),
     updatedAt: ctx.now(),
+    lastActivityAt: ctx.now(), // v2.6：闲置自动结束的活跃基准（join/记账会推进）
     endedAt: null
   }
 
-  // 生成邀请码，唯一索引冲突重试至多 5 次
+  // 生成邀请码（v2.0 起 4 位纯数字），唯一索引冲突重试至多 5 次；
+  // 历史结束的牌局已归档释放码位，冲突仅来自进行中牌局
   const rng = ctx.rng || defaultRng
   let lastErr = null
   for (let attempt = 0; attempt < INVITE_RETRY; attempt++) {
@@ -229,7 +251,9 @@ async function detail(payload, ctx) {
       status: room.status,
       memberCount: room.memberOpenids.length,
       createdAt: room.createdAt,
-      endedAt: room.endedAt == null ? null : room.endedAt
+      endedAt: room.endedAt == null ? null : room.endedAt,
+      endReason: room.endReason || null, // v2.6：历史结束的房间为 null，前端按「已结束」中性展示
+      ...activityFields(room)
     },
     members,
     settlement,
@@ -268,16 +292,51 @@ async function end(payload, ctx) {
     throw new AppError(ErrorCodes.NOT_ROOM_OWNER, 'NOT_ROOM_OWNER')
   }
 
-  const result = await ctx.roomRepo.endRoom(roomId, ctx.now())
+  const result = await ctx.roomRepo.endRoom(roomId, ctx.now(), END_REASON_OWNER)
   const r = result.room
   return {
     room: {
       roomId: r._id,
       status: r.status,
-      endedAt: r.endedAt == null ? null : r.endedAt
+      endedAt: r.endedAt == null ? null : r.endedAt,
+      endReason: r.endReason || null
     },
     alreadyEnded: result.status === 'already-ended'
   }
+}
+
+// ── autoEndIdle（v2.6：定时器触发的闲置自动结束，内部 action）────────
+/**
+ * 扫描进行中牌局，把有效活跃时间距今 ≥ IDLE_AUTO_END_MS（7 天）的自动结束。
+ * 判据「活跃」= 无新增流水且无新成员加入；记账/加入都会推进 lastActivityAt。
+ * 由定时器以 ctx.source='timer' 调用，不接受外部 action（前端无入口，见 6.5）。
+ * 单轮最多处理 IDLE_AUTO_END_BATCH 场；每场走独立事务（endRoom），互不影响。
+ * @returns {Promise<{scanned:number, ended:object[]}>} ended=[{roomId,inviteCode(归档后)}]
+ */
+async function autoEndIdle(payload, ctx) {
+  // 仅定时器可触发：普通 callFunction 进来的 ctx 不带 source='timer'
+  if (!ctx || ctx.source !== 'timer') {
+    throw new AppError(ErrorCodes.UNAUTHENTICATED, 'autoEndIdle is timer-only')
+  }
+  const now = ctx.now()
+  const cutoff = now - IDLE_AUTO_END_MS
+  const active = await ctx.roomRepo.listActive()
+  const ended = []
+  // 按有效活跃时间升序取最闲置的，过滤出已过阈值的，单轮限量
+  const idle = active
+    .filter((r) => effectiveLastActivity(r) <= cutoff)
+    .sort((a, b) => effectiveLastActivity(a) - effectiveLastActivity(b))
+    .slice(0, IDLE_AUTO_END_BATCH)
+
+  for (const room of idle) {
+    const res = await ctx.roomRepo.endRoom(room._id, now, END_REASON_IDLE)
+    if (res.status === 'ended') {
+      ended.push({ roomId: room._id, inviteCode: res.room.inviteCode })
+    }
+    // already-ended / not-found：并发已被他人结束，跳过即可
+  }
+  ctx.log && ctx.log.info && ctx.log.info('autoEndIdle', { scanned: active.length, ended: ended.length })
+  return { scanned: active.length, ended }
 }
 
 // ── remove（删除牌局记录）───────────────────────────────
@@ -318,4 +377,4 @@ async function remove(payload, ctx) {
   return { roomId, deleted: true, deletedEntries }
 }
 
-module.exports = { create, join, list, detail, end, remove, toSummary }
+module.exports = { create, join, list, detail, end, remove, autoEndIdle, toSummary }

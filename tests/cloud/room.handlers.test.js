@@ -6,7 +6,7 @@
 const handlers = require('../../cloudfunctions/room/handlers')
 const { AppError, ErrorCodes } = require('../../shared/errors')
 const { computeSettlement } = require('../../shared/settlement')
-const { INVITE_CODE_ALPHABET } = require('../../shared/constants')
+const { INVITE_CODE_ALPHABET, MAX_MEMBERS, IDLE_AUTO_END_MS, IDLE_AUTO_END_BATCH } = require('../../shared/constants')
 const { isValidCodeFormat } = require('../../shared/invite-code')
 const { FakeUserRepo, FakeRoomRepo, FakeEntryRepo } = require('../helpers/fake-repos')
 
@@ -19,14 +19,14 @@ const NOW = 1762500000000
 let clock = NOW
 const now = () => (clock += 1) // 递增避免 createdAt 相同干扰排序
 
-/** 由目标邀请码构造双参 rng（generateCode 依 rng.length>=2 走整数分支） */
+/** 由目标邀请码构造双参 rng（generateCode 依 rng.length>=2 走整数分支；v2.0 起码为 4 位纯数字） */
 function rngForCode(code) {
   const indices = String(code)
     .split('')
     .map((ch) => INVITE_CODE_ALPHABET.indexOf(ch))
   let i = 0
   return function rng(min, max) {
-    // 循环返回：先给第一个 code，之后给第二个 code（每 6 位一段）
+    // 循环返回：先给第一个 code，之后给第二个 code（每 4 位一段）
     const v = indices[i % indices.length]
     i++
     return v
@@ -79,12 +79,12 @@ describe('create', () => {
     await seedUser(ctx.userRepo, OWNER, '张三')
     const res = await handlers.create(
       { name: '周五夜场', clientRequestId: 'req_000001' },
-      { ...ctx, rng: rngForCode('ABC234') }
+      { ...ctx, rng: rngForCode('0721') }
     )
     expect(res.room.name).toBe('周五夜场')
     expect(res.room.status).toBe('active')
     expect(res.room.memberCount).toBe(1)
-    expect(res.room.inviteCode).toBe('ABC234')
+    expect(res.room.inviteCode).toBe('0721')
     expect(res.idempotent).toBeUndefined()
     // 房主自动成为成员
     const room = await ctx.roomRepo.findById(res.room.roomId)
@@ -131,34 +131,34 @@ describe('create', () => {
     const ctx = makeCtx()
     await seedUser(ctx.userRepo, OWNER, '张三')
     const p = { name: '同一局', clientRequestId: 'req_dup' }
-    const r1 = await handlers.create(p, { ...ctx, rng: rngForCode('AAAAAA') })
-    const r2 = await handlers.create(p, { ...ctx, rng: rngForCode('BBBBBB') })
+    const r1 = await handlers.create(p, { ...ctx, rng: rngForCode('1111') })
+    const r2 = await handlers.create(p, { ...ctx, rng: rngForCode('2222') })
     expect(r2.room.roomId).toBe(r1.room.roomId)
     expect(r2.idempotent).toBe(true)
     // 第二次用了不同码，但返回的仍是首间房
-    expect(r2.room.inviteCode).toBe('AAAAAA')
+    expect(r2.room.inviteCode).toBe('1111')
   })
 
   test('ROOM-04 邀请码冲突 -> 重试生成新码', async () => {
-    // 首个 code 'CCCCCC' 冲突，第二个 'DDDDDD' 成功
-    const c2 = makeCtx({ roomRepo: new FakeRoomRepo({ conflictInviteCodes: ['CCCCCC'] }) })
+    // 首个 code '3333' 冲突，第二个 '4444' 成功
+    const c2 = makeCtx({ roomRepo: new FakeRoomRepo({ conflictInviteCodes: ['3333'] }) })
     await seedUser(c2.userRepo, OWNER, '张三')
     const res = await handlers.create(
       { name: '重试局', clientRequestId: 'req_retry' },
-      { ...c2, rng: rngForCodes('CCCCCC', 'DDDDDD') }
+      { ...c2, rng: rngForCodes('3333', '4444') }
     )
-    expect(res.room.inviteCode).toBe('DDDDDD')
+    expect(res.room.inviteCode).toBe('4444')
   })
 
   test('ROOM-04b 连续冲突超过重试上限 -> INTERNAL_ERROR', async () => {
     const ctx = makeCtx()
     await seedUser(ctx.userRepo, OWNER, '张三')
-    const roomRepo = new FakeRoomRepo({ conflictInviteCodes: ['EEEEEE'] })
+    const roomRepo = new FakeRoomRepo({ conflictInviteCodes: ['5555'] })
     await expectCode(
       () =>
         handlers.create(
           { name: '倒霉局', clientRequestId: 'req_bad' },
-          { ...ctx, roomRepo, rng: rngForCode('EEEEEE') }
+          { ...ctx, roomRepo, rng: rngForCode('5555') }
         ),
       ErrorCodes.INTERNAL_ERROR
     )
@@ -185,7 +185,7 @@ describe('create', () => {
     const roomRepo = new FakeRoomRepo({ forceIdempotencyConflict: true })
     const res = await handlers.create(
       { name: '并发局', clientRequestId: 'req_conc' },
-      { ...ctx, roomRepo, rng: rngForCode('FFFFFF') }
+      { ...ctx, roomRepo, rng: rngForCode('6666') }
     )
     expect(res.idempotent).toBe(true)
     expect(res.room.name).toBe('并发局')
@@ -201,7 +201,7 @@ describe('join', () => {
       memberOpenids: [OWNER],
       members: [{ openid: OWNER, joinedAt: NOW }],
       status: 'active',
-      inviteCode: 'ZZ2345',
+      inviteCode: '8234',
       createdByRequestId: 'r1',
       createdAt: NOW,
       updatedAt: NOW,
@@ -214,7 +214,7 @@ describe('join', () => {
   test('ROOM-05 邀请码加入 -> 新成员、alreadyMember=false', async () => {
     const { roomRepo, room } = await seededRoom()
     const ctx = { ...makeCtx({ roomRepo }), openid: MEMBER_B }
-    const res = await handlers.join({ inviteCode: 'zz2345' }, ctx) // 小写应被规范化
+    const res = await handlers.join({ inviteCode: ' 8234 ' }, ctx) // 首尾空格应被 trim 规范化
     expect(res.alreadyMember).toBe(false)
     expect(res.room.memberCount).toBe(2)
     const after = await roomRepo.findById(room._id)
@@ -225,27 +225,27 @@ describe('join', () => {
   test('ROOM-06 重复加入 -> alreadyMember=true', async () => {
     const { roomRepo } = await seededRoom({ memberOpenids: [OWNER, MEMBER_B], members: [{ openid: OWNER, joinedAt: NOW }, { openid: MEMBER_B, joinedAt: NOW }] })
     const ctx = { ...makeCtx({ roomRepo }), openid: MEMBER_B }
-    const res = await handlers.join({ inviteCode: 'ZZ2345' }, ctx)
+    const res = await handlers.join({ inviteCode: '8234' }, ctx)
     expect(res.alreadyMember).toBe(true)
   })
 
   test('ROOM-07 非成员加入已结束 -> ROOM_ENDED', async () => {
     const { roomRepo } = await seededRoom({ status: 'ended', endedAt: NOW })
     const ctx = { ...makeCtx({ roomRepo }), openid: STRANGER }
-    await expectCode(() => handlers.join({ inviteCode: 'ZZ2345' }, ctx), ErrorCodes.ROOM_ENDED)
+    await expectCode(() => handlers.join({ inviteCode: '8234' }, ctx), ErrorCodes.ROOM_ENDED)
   })
 
   test('ROOM-07b 成员再次加入已结束 -> 成功 alreadyMember=true', async () => {
     const { roomRepo } = await seededRoom({ status: 'ended', memberOpenids: [OWNER, MEMBER_B], members: [{ openid: OWNER, joinedAt: NOW }, { openid: MEMBER_B, joinedAt: NOW }] })
     const ctx = { ...makeCtx({ roomRepo }), openid: MEMBER_B }
-    const res = await handlers.join({ inviteCode: 'ZZ2345' }, ctx)
+    const res = await handlers.join({ inviteCode: '8234' }, ctx)
     expect(res.alreadyMember).toBe(true)
   })
 
   test('ROOM-08 不存在邀请码 -> INVALID_INVITE_CODE', async () => {
     const { roomRepo } = await seededRoom()
     const ctx = { ...makeCtx({ roomRepo }), openid: STRANGER }
-    await expectCode(() => handlers.join({ inviteCode: 'QQQQQQ' }, ctx), ErrorCodes.INVALID_INVITE_CODE)
+    await expectCode(() => handlers.join({ inviteCode: '0001' }, ctx), ErrorCodes.INVALID_INVITE_CODE)
   })
 
   test('ROOM-09 邀请码格式错误 -> INVALID_INVITE_CODE_FORMAT', async () => {
@@ -258,10 +258,10 @@ describe('join', () => {
   })
 
   test('ROOM-10 成员数达上限 -> ROOM_FULL', async () => {
-    const members = new Array(100).fill(0).map((_, i) => `o_m_${i}`)
+    const members = new Array(MAX_MEMBERS).fill(0).map((_, i) => `o_m_${i}`)
     const { roomRepo } = await seededRoom({ memberOpenids: members, members: members.map((m) => ({ openid: m, joinedAt: NOW })) })
     const ctx = { ...makeCtx({ roomRepo }), openid: STRANGER }
-    await expectCode(() => handlers.join({ inviteCode: 'ZZ2345' }, ctx), ErrorCodes.ROOM_FULL)
+    await expectCode(() => handlers.join({ inviteCode: '8234' }, ctx), ErrorCodes.ROOM_FULL)
   })
 })
 
@@ -274,7 +274,7 @@ describe('list', () => {
         memberOpenids: [openid],
         members: [{ openid, joinedAt: startTs + i }],
         status: 'active',
-        inviteCode: `L${String(i).padStart(5, '0')}`.slice(0, 6),
+        inviteCode: String(1000 + i),
         createdByRequestId: `cr_${openid}_${i}`,
         createdAt: startTs + i,
         updatedAt: startTs + i,
@@ -342,7 +342,7 @@ describe('detail', () => {
       memberOpenids: [OWNER, MEMBER_B, MEMBER_C],
       members,
       status: 'active',
-      inviteCode: 'D12345',
+      inviteCode: '7123',
       createdByRequestId: 'd1',
       createdAt: 1000,
       updatedAt: 1000,
@@ -378,7 +378,7 @@ describe('detail', () => {
     // 空昵称成员使用临时昵称：玩家 + openid 后 4 位
     const c = res.members.find((m) => m.openid === MEMBER_C)
     expect(c.nickname).toBe(`玩家${MEMBER_C.slice(-4)}`)
-    expect(res.room.inviteCode).toBe('D12345')
+    expect(res.room.inviteCode).toBe('7123')
     expect(res.room.ownerOpenid).toBe(OWNER)
 
     // 结算：张三 -8000，李四 +5000，王五 +3000
@@ -436,7 +436,7 @@ describe('end', () => {
       memberOpenids: [OWNER, MEMBER_B],
       members: [{ openid: OWNER, joinedAt: 1 }, { openid: MEMBER_B, joinedAt: 2 }],
       status: 'active',
-      inviteCode: 'E12345',
+      inviteCode: '8123',
       createdByRequestId: 'e1',
       createdAt: 1000,
       updatedAt: 1000,
@@ -469,6 +469,23 @@ describe('end', () => {
     expect(res.alreadyEnded).toBe(true)
   })
 
+  test('ROOM-19b 结束后邀请码归档：旧码加入 -> INVALID_INVITE_CODE，数字码位可被新牌局复用（v2.0）', async () => {
+    const { roomRepo, room } = await seeded()
+    const ctx = { ...makeCtx({ roomRepo }), openid: OWNER }
+    await seedUser(ctx.userRepo, OWNER, '张三')
+
+    await handlers.end({ roomId: room._id }, ctx)
+    const archived = await roomRepo.findById(room._id)
+    expect(archived.inviteCode).toBe(`E:${room._id}`) // '8123' 码位已释放
+
+    const stranger = { ...makeCtx({ roomRepo }), openid: STRANGER }
+    await expectCode(() => handlers.join({ inviteCode: '8123' }, stranger), ErrorCodes.INVALID_INVITE_CODE)
+
+    // 新建牌局复用刚释放的码位：唯一索引不再冲突
+    const res = await handlers.create({ clientRequestId: 'req_reuse_code' }, { ...ctx, rng: rngForCode('8123') })
+    expect(res.room.inviteCode).toBe('8123')
+  })
+
   test('结束不存在的房间 -> ROOM_NOT_FOUND', async () => {
     const { roomRepo } = await seeded()
     const ctx = { ...makeCtx({ roomRepo }), openid: OWNER }
@@ -486,7 +503,7 @@ describe('remove', () => {
       memberOpenids: [OWNER, MEMBER_B],
       members: [{ openid: OWNER, joinedAt: 1 }, { openid: MEMBER_B, joinedAt: 2 }],
       status,
-      inviteCode: 'R12345',
+      inviteCode: '9123',
       createdByRequestId: 'rm1',
       createdAt: 1000,
       updatedAt: 1000,
@@ -542,5 +559,173 @@ describe('remove', () => {
   test('缺少 roomId -> INVALID_PARAM', async () => {
     const ctx = makeCtx()
     await expectCode(() => handlers.remove({}, ctx), ErrorCodes.INVALID_PARAM)
+  })
+})
+
+describe('autoEndIdle（v2.6 闲置自动结束）', () => {
+  const DAY = 24 * 60 * 60 * 1000
+
+  /** 定时器上下文：index.js 以 ctx.source='timer' 分发，普通 callFunction 路径不带 */
+  function timerCtx(roomRepo) {
+    return { ...makeCtx({ roomRepo }), source: 'timer' }
+  }
+
+  /** 直接种一间进行中房（绕过 create，精确控制活跃时间字段） */
+  function seedActive(roomRepo, id, fields = {}) {
+    const createdAt = fields.createdAt || 1
+    return roomRepo.seed({
+      _id: id,
+      name: '闲置局',
+      ownerOpenid: OWNER,
+      memberOpenids: [OWNER],
+      members: [{ openid: OWNER, joinedAt: createdAt }],
+      status: 'active',
+      inviteCode: fields.inviteCode || '1234',
+      createdAt,
+      updatedAt: fields.updatedAt != null ? fields.updatedAt : createdAt,
+      lastActivityAt: fields.lastActivityAt // undefined -> 触发历史回退
+    })
+  }
+
+  test('ROOM-IDLE-01 非定时器调用 -> UNAUTHENTICATED，且不产生任何结束', async () => {
+    const roomRepo = new FakeRoomRepo()
+    const base = now()
+    await seedActive(roomRepo, 'r_idle1', { lastActivityAt: base - IDLE_AUTO_END_MS - DAY })
+    await expectCode(() => handlers.autoEndIdle({}, makeCtx({ roomRepo })), ErrorCodes.UNAUTHENTICATED)
+    expect((await roomRepo.findById('r_idle1')).status).toBe('active')
+  })
+
+  test('ROOM-IDLE-02 活跃满 7 天 -> 结束、endReason=idle、邀请码归档、返回体契约', async () => {
+    const roomRepo = new FakeRoomRepo()
+    const base = now()
+    // 处理器内部 ctx.now()=base+1，cutoff=base+1-7d；恰满 7 天（base-7d）<= cutoff 应被结束
+    await seedActive(roomRepo, 'r_idle1', { lastActivityAt: base - IDLE_AUTO_END_MS, inviteCode: '0721' })
+    const res = await handlers.autoEndIdle({}, timerCtx(roomRepo))
+    expect(res).toEqual({ scanned: 1, ended: [{ roomId: 'r_idle1', inviteCode: 'E:r_idle1' }] })
+    const room = await roomRepo.findById('r_idle1')
+    expect(room.status).toBe('ended')
+    expect(room.endReason).toBe('idle')
+    expect(room.endedAt).toBe(base + 1)
+    expect(room.inviteCode).toBe('E:r_idle1') // v2.0 归档语义复用，释放数字码位
+  })
+
+  test('ROOM-IDLE-03 近 7 天内有活动 -> 跳过不结束', async () => {
+    const roomRepo = new FakeRoomRepo()
+    const base = now()
+    await seedActive(roomRepo, 'r_fresh', { lastActivityAt: base - DAY })
+    const res = await handlers.autoEndIdle({}, timerCtx(roomRepo))
+    expect(res).toEqual({ scanned: 1, ended: [] })
+    expect((await roomRepo.findById('r_fresh')).status).toBe('active')
+  })
+
+  test('ROOM-IDLE-04 历史数据无 lastActivityAt -> 回退 max(createdAt, updatedAt)', async () => {
+    const roomRepo = new FakeRoomRepo()
+    const base = now()
+    // 旧房：创建于 7 天前且从未推进 -> 结束
+    await seedActive(roomRepo, 'r_old', { createdAt: base - IDLE_AUTO_END_MS - DAY })
+    // 旧房新近有人加入（updatedAt 被推进）-> 保留
+    await seedActive(roomRepo, 'r_joined_recent', { createdAt: base - 30 * DAY, updatedAt: base - DAY })
+    const res = await handlers.autoEndIdle({}, timerCtx(roomRepo))
+    expect(res.scanned).toBe(2)
+    expect(res.ended.map((e) => e.roomId)).toEqual(['r_old'])
+    expect((await roomRepo.findById('r_joined_recent')).status).toBe('active')
+  })
+
+  test('ROOM-IDLE-05 阈值边缘：还差 1ms 未满 7 天 -> 不结束', async () => {
+    const roomRepo = new FakeRoomRepo()
+    const base = now()
+    // cutoff=base+1-IDLE_AUTO_END_MS，取比它晚 1ms 的时间点
+    await seedActive(roomRepo, 'r_edge', { lastActivityAt: base + 2 - IDLE_AUTO_END_MS })
+    const res = await handlers.autoEndIdle({}, timerCtx(roomRepo))
+    expect(res.ended).toEqual([])
+    expect((await roomRepo.findById('r_edge')).status).toBe('active')
+  })
+
+  test('ROOM-IDLE-06 单轮限量 IDLE_AUTO_END_BATCH，最闲置优先，余者留到下一轮', async () => {
+    const roomRepo = new FakeRoomRepo()
+    const base = now()
+    const n = IDLE_AUTO_END_BATCH + 2
+    for (let i = 0; i < n; i++) {
+      // i 越小越闲置（活跃时间越早）
+      await seedActive(roomRepo, `r_b${i}`, { lastActivityAt: base - IDLE_AUTO_END_MS - (n - i) * 1000 })
+    }
+    const res = await handlers.autoEndIdle({}, timerCtx(roomRepo))
+    expect(res.scanned).toBe(n)
+    expect(res.ended).toHaveLength(IDLE_AUTO_END_BATCH)
+    expect(res.ended[0].roomId).toBe('r_b0')
+    expect(res.ended[res.ended.length - 1].roomId).toBe(`r_b${IDLE_AUTO_END_BATCH - 1}`)
+    expect((await roomRepo.findById(`r_b${n - 2}`)).status).toBe('active') // 最接近阈值的两间顺延
+    expect((await roomRepo.findById(`r_b${n - 1}`)).status).toBe('active')
+    expect((await roomRepo.findById('r_b0')).status).toBe('ended')
+  })
+
+  test('ROOM-IDLE-07 与房主手动结束并发：already-ended 不计入 ended、不重复计数', async () => {
+    const roomRepo = new FakeRoomRepo()
+    const base = now()
+    await seedActive(roomRepo, 'r_race', { lastActivityAt: base - IDLE_AUTO_END_MS - 1000 })
+    await seedActive(roomRepo, 'r_idle2', { lastActivityAt: base - IDLE_AUTO_END_MS - 2000 })
+    const orig = roomRepo.endRoom.bind(roomRepo)
+    roomRepo.endRoom = async (id, at, reason) =>
+      id === 'r_race' ? { status: 'already-ended', room: await roomRepo.findById(id) } : orig(id, at, reason)
+    const res = await handlers.autoEndIdle({}, timerCtx(roomRepo))
+    expect(res.ended.map((e) => e.roomId)).toEqual(['r_idle2'])
+    expect((await roomRepo.findById('r_race')).status).toBe('active') // 假 already-ended 后本轮不落库，下轮再扫
+  })
+
+  test('ROOM-IDLE-08 已结束牌局不参与扫描（scanned 仅统计进行中）', async () => {
+    const roomRepo = new FakeRoomRepo()
+    const base = now()
+    await seedActive(roomRepo, 'r_active_idle', { lastActivityAt: base - IDLE_AUTO_END_MS - 1000 })
+    await roomRepo.seed({
+      _id: 'r_done',
+      ownerOpenid: OWNER,
+      memberOpenids: [OWNER],
+      members: [{ openid: OWNER, joinedAt: 1 }],
+      status: 'ended',
+      inviteCode: 'E:r_done',
+      createdAt: 1,
+      updatedAt: 2,
+      endedAt: 2,
+      endReason: 'idle'
+    })
+    const res = await handlers.autoEndIdle({}, timerCtx(roomRepo))
+    expect(res).toEqual({ scanned: 1, ended: [{ roomId: 'r_active_idle', inviteCode: 'E:r_active_idle' }] })
+  })
+
+  test('ROOM-IDLE-09 create/list/detail 出口统一附带 lastActivityAt/autoEndAt（前端预告数据源）', async () => {
+    const userRepo = new FakeUserRepo()
+    const roomRepo = new FakeRoomRepo()
+    const ctx = { ...makeCtx({ userRepo, roomRepo }), openid: OWNER }
+    await seedUser(userRepo, OWNER, '张三')
+
+    const created = await handlers.create({ name: '', clientRequestId: 'req_idle_fields' }, ctx)
+    const raw = await roomRepo.findById(created.room.roomId)
+    expect(raw.lastActivityAt).toBeGreaterThanOrEqual(raw.createdAt) // v2.6：建房即活跃
+    expect(created.room.lastActivityAt).toBe(raw.lastActivityAt)
+    expect(created.room.autoEndAt).toBe(raw.lastActivityAt + IDLE_AUTO_END_MS)
+
+    const d = await handlers.detail({ roomId: created.room.roomId }, ctx)
+    expect(d.room.lastActivityAt).toBe(raw.lastActivityAt)
+    expect(d.room.autoEndAt).toBe(raw.lastActivityAt + IDLE_AUTO_END_MS)
+    expect(d.room.endReason).toBeNull()
+
+    const list = await handlers.list({}, ctx)
+    expect(list.items[0].autoEndAt).toBe(raw.lastActivityAt + IDLE_AUTO_END_MS)
+
+    await handlers.end({ roomId: created.room.roomId }, ctx)
+    const d2 = await handlers.detail({ roomId: created.room.roomId }, ctx)
+    expect(d2.room.autoEndAt).toBeNull() // 已结束无自动结束时间点
+    expect(d2.room.endReason).toBe('owner') // 房主手动结束仍走 v1.1 语义
+  })
+
+  test('ROOM-IDLE-10 detail 对历史房间按 max(createdAt, updatedAt) 回退活跃时间', async () => {
+    const userRepo = new FakeUserRepo()
+    const roomRepo = new FakeRoomRepo()
+    const base = now()
+    await seedUser(userRepo, OWNER, '张三')
+    await seedActive(roomRepo, 'r_legacy', { createdAt: base - 5 * DAY, updatedAt: base - DAY, inviteCode: '4321' })
+    const d = await handlers.detail({ roomId: 'r_legacy' }, { ...makeCtx({ userRepo, roomRepo }), openid: OWNER })
+    expect(d.room.lastActivityAt).toBe(base - DAY)
+    expect(d.room.autoEndAt).toBe(base - DAY + IDLE_AUTO_END_MS)
   })
 })

@@ -36,7 +36,7 @@ function getShareMessage(room) {
 
 /**
  * 解析扫码进入的 scene 参数
- * 兼容 URL 编码：'c%3DA7K2M9' 与 'c=A7K2M9'；非法返回空串
+ * 兼容 URL 编码：'c%3D8234' 与 'c=8234'；非法返回空串
  * @param {string} scene
  * @returns {string} 邀请码或 ''
  */

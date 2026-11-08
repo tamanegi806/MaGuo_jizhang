@@ -1,14 +1,23 @@
-/* entry-card — 复用 app.wxss 设计变量 */
+/* entry-card — 卡片内的一行流水（账单式：上排人物 + 右对齐金额，下排时间）
+   v2.3 低调化：金额微信红 -> 正文黑、去粗；人名/金额降一档字号；行高压缩。
+   红绿语义全部交由详情页成员头像下方的盈亏承担，流水行退为账单背景。
+   自定义组件不继承 app.wxss 的类选择器，故只复用其 CSS 变量 */
 .entry-card {
-  padding: var(--padding-base);
-  border-radius: var(--radius-base);
-  background-color: #ffffff;
+  padding: 16rpx var(--padding-base);
 }
 
 .entry-card__main {
   display: flex;
   align-items: center;
-  font-size: var(--font-size-lg);
+  justify-content: space-between;
+}
+
+.entry-card__who {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-base); /* 34 -> 30rpx */
   color: var(--color-text);
 }
 
@@ -21,24 +30,22 @@
 }
 
 .entry-card__arrow {
-  margin: 0 16rpx;
-  color: var(--color-text-secondary);
-}
-
-.entry-card__meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 16rpx;
-}
-
-.entry-card__time {
+  margin: 0 12rpx;
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
 }
 
 .entry-card__amount {
-  font-size: var(--font-size-base);
-  font-weight: 600;
-  color: var(--color-danger);
+  flex-shrink: 0;
+  margin-left: 16rpx;
+  font-size: var(--font-size-base); /* 34 -> 30rpx */
+  font-weight: 500; /* 600 -> 500 */
+  color: var(--color-text); /* 微信红 -> 正文黑：方向语义在「甲 → 乙」文本中，颜色不承载 */
+}
+
+.entry-card__time {
+  display: block;
+  margin-top: 4rpx;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
 }

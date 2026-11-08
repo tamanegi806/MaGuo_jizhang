@@ -1,6 +1,6 @@
 <view class="container profile-page">
   <view class="avatar-area">
-    <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+    <button class="avatar-btn" hover-class="avatar-btn--hover" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
       <image
         wx:if="{{avatarTempPath || avatarFileID}}"
         class="avatar-btn__img"
@@ -12,28 +12,31 @@
     <text wx:if="{{uploading}}" class="avatar-area__status">头像上传中…</text>
   </view>
 
-  <view class="form">
-    <text class="form__label">昵称</text>
-    <input
-      class="form__input"
-      type="nickname"
-      value="{{nickname}}"
-      placeholder="点击填写微信昵称"
-      maxlength="20"
-      disabled="{{submitting}}"
-      bindinput="onInputNickname"
-      bindblur="onInputNickname"
-    />
+  <view class="card form">
+    <view class="form__row">
+      <text class="form__label">昵称</text>
+      <input
+        class="form__input"
+        type="nickname"
+        value="{{nickname}}"
+        placeholder="点击填写微信昵称"
+        placeholder-class="form__placeholder"
+        maxlength="20"
+        disabled="{{submitting}}"
+        bindinput="onInputNickname"
+        bindblur="onInputNickname"
+      />
+    </view>
     <text wx:if="{{nicknameError}}" class="form__error">{{nicknameError}}</text>
   </view>
 
-  <view wx:if="{{error}}" class="page-error">
+  <view wx:if="{{error}}" class="notice notice--danger page-error">
     <text>{{error.message}}</text>
   </view>
 
   <button
-    class="save"
-    type="primary"
+    class="btn btn--primary btn--block save"
+    hover-class="btn--primary-hover"
     loading="{{submitting}}"
     disabled="{{submitting || uploading}}"
     bindtap="tapSave"

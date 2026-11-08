@@ -1,4 +1,4 @@
-/* invite-sheet — 底部弹层，适配安全区；按钮点击区域 ≥44px */
+/* invite-sheet — 底部弹层 + 邀请卡；只复用 app.wxss 的 CSS 变量（组件不继承其类选择器） */
 .invite-sheet {
   position: fixed;
   top: 0;
@@ -14,7 +14,7 @@
   right: 0;
   bottom: 0;
   left: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--color-mask);
 }
 
 .invite-sheet__panel {
@@ -22,18 +22,26 @@
   right: 0;
   bottom: 0;
   left: 0;
-  padding: var(--padding-base);
+  padding: 24rpx var(--padding-base);
   padding-bottom: calc(var(--padding-base) + constant(safe-area-inset-bottom));
   padding-bottom: calc(var(--padding-base) + env(safe-area-inset-bottom));
-  border-radius: 24rpx 24rpx 0 0;
-  background-color: #ffffff;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  background-color: var(--color-card);
+}
+
+/* 弹层把手（微信原生底部卡常见） */
+.invite-sheet__handle {
+  width: 72rpx;
+  height: 8rpx;
+  margin: 0 auto 8rpx;
+  background-color: var(--color-border);
+  border-radius: var(--radius-pill);
 }
 
 .invite-sheet__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16rpx;
 }
 
 .invite-sheet__title {
@@ -48,8 +56,82 @@
   justify-content: center;
   width: 96rpx;
   height: 96rpx; /* ≥44px */
-  font-size: 40rpx;
+  margin-right: -24rpx;
+  font-size: 44rpx;
+  line-height: 1;
+  color: var(--color-text-tertiary);
+}
+
+/* ---------- 邀请卡 ---------- */
+
+.invite-card {
+  overflow: hidden;
+  margin-top: 8rpx;
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-card);
+}
+
+.invite-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24rpx 28rpx 8rpx;
+  background-color: var(--color-primary-tint);
+}
+
+.invite-card__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* 头像堆叠：负边距压叠，微信通讯录式圆角方 */
+.invite-card__faces {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 16rpx;
+}
+
+.invite-card__face {
+  width: 56rpx;
+  height: 56rpx;
+  margin-left: -16rpx;
+  border: 2rpx solid var(--color-card);
+  border-radius: var(--radius-avatar);
+  background-color: var(--color-fill);
+}
+
+.invite-card__face:first-child {
+  margin-left: 0;
+}
+
+.invite-card__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56rpx;
+  height: 56rpx;
+  margin-left: -8rpx;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
+  background-color: var(--color-fill);
+  border: 2rpx solid var(--color-card);
+  border-radius: var(--radius-avatar);
+}
+
+.invite-card__meta {
+  display: block;
+  padding: 0 28rpx 20rpx;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  background-color: var(--color-primary-tint);
 }
 
 .invite-sheet__qr-area {
@@ -57,14 +139,14 @@
   align-items: center;
   justify-content: center;
   min-height: 420rpx;
-  margin: 16rpx 0;
+  padding: 8rpx 0;
 }
 
 .invite-sheet__skeleton {
   width: 360rpx;
   height: 360rpx;
   border-radius: var(--radius-base);
-  background: linear-gradient(90deg, var(--color-bg) 25%, #e8e8e8 37%, var(--color-bg) 63%);
+  background: linear-gradient(90deg, var(--color-fill) 25%, #e9e9e9 37%, var(--color-fill) 63%);
   background-size: 400% 100%;
   animation: invite-sheet-skeleton 1.4s ease infinite;
 }
@@ -104,27 +186,41 @@
   padding: 0 32rpx;
   font-size: var(--font-size-base);
   color: var(--color-primary);
-  border: 1rpx solid var(--color-primary);
+  background-color: var(--color-primary-tint);
   border-radius: var(--radius-base);
 }
 
-.invite-sheet__code-row {
+/* 邀请码区：牌面观感（淡灰底 + 大字距） */
+.invite-card__code-block {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  margin: 16rpx 0;
+  padding: 8rpx 28rpx 28rpx;
+  border-top: 1rpx solid var(--color-divider);
 }
 
 .invite-sheet__code-label {
-  margin-right: 16rpx;
-  font-size: var(--font-size-base);
+  margin-bottom: 12rpx;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
 
+.invite-card__tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 360rpx;
+  padding: 16rpx 32rpx;
+  background-color: var(--color-fill);
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-base);
+}
+
 .invite-sheet__code {
-  font-size: 44rpx;
+  font-size: 52rpx;
   font-weight: 600;
-  letter-spacing: 6rpx;
+  letter-spacing: 10rpx;
+  text-indent: 10rpx; /* 抵消末字符字距，保证居中 */
   color: var(--color-text);
 }
 
@@ -132,30 +228,43 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 96rpx;
+  min-width: 240rpx;
   min-height: 96rpx; /* ≥44px */
-  margin-left: 24rpx;
+  margin-top: 20rpx;
   padding: 0 32rpx;
   font-size: var(--font-size-base);
-  color: #ffffff;
+  color: var(--color-primary);
+  background-color: var(--color-primary-tint);
+  border-radius: var(--radius-base);
+}
+
+/* 转发主按钮（覆盖 button 默认描边） */
+.invite-sheet__share {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 96rpx; /* ≥44px */
+  margin-top: 32rpx;
+  font-size: var(--font-size-lg);
+  color: var(--color-text-inverse);
   background-color: var(--color-primary);
   border-radius: var(--radius-base);
 }
 
-.invite-sheet__share {
-  width: 100%;
-  min-height: 96rpx; /* ≥44px */
-  margin-top: 16rpx;
-  font-size: var(--font-size-lg);
-  color: #ffffff;
-  background-color: var(--color-primary);
-  border-radius: var(--radius-base);
+.invite-sheet__share::after {
+  border: none;
+}
+
+.invite-sheet__share-hover {
+  background-color: var(--color-primary-pressed);
 }
 
 .invite-sheet__hint {
   display: block;
-  margin-top: 16rpx;
+  margin-top: 20rpx;
   text-align: center;
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  line-height: 1.6;
+  color: var(--color-text-tertiary);
 }

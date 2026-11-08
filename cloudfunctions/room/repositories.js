@@ -109,14 +109,16 @@ function createRepositories(db, _) {
           ...r,
           memberOpenids: r.memberOpenids.concat(openid),
           members: (r.members || []).concat([{ openid, joinedAt }]),
-          updatedAt: joinedAt
+          updatedAt: joinedAt,
+          lastActivityAt: joinedAt // v2.6：新成员加入计为一次活跃（闲置判据推进）
         }
         // 只提交变更字段：真实云数据库禁止 update data 携带 _id（整文档回写会抛原生错误 -> 5001 服务异常）
         await transaction.collection(COLLECTIONS.COLLECTION_ROOMS).doc(roomId).update({
           data: {
             memberOpenids: updated.memberOpenids,
             members: updated.members,
-            updatedAt: updated.updatedAt
+            updatedAt: updated.updatedAt,
+            lastActivityAt: updated.lastActivityAt
           }
         })
         await transaction.commit()
@@ -139,9 +141,19 @@ function createRepositories(db, _) {
 
     /**
      * 事务内结束牌局
+     * v2.0：邀请码改为 4 位纯数字（码池仅 10^4），结束时将该房间的 inviteCode 归档为
+     * `E:{roomId}` 释放数字码位——新建牌局可复用该码，码池占用只与「进行中牌局数」相关，
+     * 不会因历史牌局累积而耗尽。副作用：结束后旧分享链接/小程序码按原码加入将命中
+     * 「邀请码无效」（与邀请卡文案「牌局结束后邀请码失效」一致）；ROOM_ENDED 仅保留为
+     * 结束与加入并发的兜底分支。
+     * v2.6：新增 reason（'owner' 房主手动 / 'idle' 系统自动结束），落库供详情页标注。
+     * @param {string} roomId
+     * @param {number} now
+     * @param {'owner'|'idle'} [reason]
      * @returns {Promise<{status:string, room:object}>}
      */
-    async endRoom(roomId, now) {
+    async endRoom(roomId, now, reason) {
+      const endReason = reason || 'owner'
       const transaction = await db.startTransaction()
       try {
         const res = await transaction.collection(COLLECTIONS.COLLECTION_ROOMS).doc(roomId).get()
@@ -154,9 +166,17 @@ function createRepositories(db, _) {
           await transaction.rollback()
           return { status: 'already-ended', room: r }
         }
-        const updated = { ...r, status: 'ended', endedAt: now, updatedAt: now }
+        const archivedInviteCode = `E:${roomId}`
+        const updated = {
+          ...r,
+          status: 'ended',
+          endedAt: now,
+          updatedAt: now,
+          endReason,
+          inviteCode: archivedInviteCode
+        }
         await transaction.collection(COLLECTIONS.COLLECTION_ROOMS).doc(roomId).update({
-          data: { status: 'ended', endedAt: now, updatedAt: now }
+          data: { status: 'ended', endedAt: now, updatedAt: now, endReason, inviteCode: archivedInviteCode }
         })
         await transaction.commit()
         return { status: 'ended', room: updated }
@@ -164,6 +184,20 @@ function createRepositories(db, _) {
         await rollbackQuietly(transaction)
         throw err
       }
+    },
+
+    /**
+     * v2.6：列出全部进行中房间（供定时器扫描闲置）。按 updatedAt 升序（最久未动在前）。
+     * @param {number} [limit]
+     * @returns {Promise<object[]>}
+     */
+    async listActive(limit) {
+      const res = await rooms
+        .where({ status: 'active' })
+        .orderBy('updatedAt', 'asc')
+        .limit(limit || 500)
+        .get()
+      return res.data
     },
 
     /**

@@ -48,8 +48,8 @@ describe('createRoom', () => {
 describe('joinRoom', () => {
   test('透传 inviteCode', async () => {
     mockCall.mockResolvedValue({ room: { roomId: 'r_1' }, alreadyMember: false })
-    const res = await roomService.joinRoom('A7K2M9')
-    expect(mockCall).toHaveBeenCalledWith('room', 'join', { inviteCode: 'A7K2M9' })
+    const res = await roomService.joinRoom('8234')
+    expect(mockCall).toHaveBeenCalledWith('room', 'join', { inviteCode: '8234' })
     expect(res.alreadyMember).toBe(false)
   })
 

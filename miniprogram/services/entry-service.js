@@ -6,7 +6,7 @@ const { call } = require('./api-client')
 
 /**
  * 新增流水
- * clientRequestId 必传：进入记一笔页时生成，失败重试必须复用同一值；服务层不做隐式新键
+ * clientRequestId 必传：打开记账弹层时生成，失败重试必须复用同一值；服务层不做隐式新键
  * @param {{roomId:string, fromOpenid:string, toOpenid:string, amountCents:number, clientRequestId:string}} input
  * @returns {Promise<{entry:object, duplicated:boolean}>}
  */

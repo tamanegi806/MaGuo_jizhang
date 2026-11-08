@@ -31,7 +31,7 @@ async function makeCtx({ status = 'active', members = [MEMBER] } = {}) {
     memberOpenids: members,
     members: members.map((m) => ({ openid: m, joinedAt: 1 })),
     status,
-    inviteCode: 'A7K2M9',
+    inviteCode: '8234',
     createdByRequestId: 'q1',
     createdAt: 1,
     updatedAt: 1,
@@ -60,8 +60,8 @@ describe('qr', () => {
     const { ctx, room } = await makeCtx()
     const res = await handlers.qr({ roomId: room._id }, ctx)
     expect(res.fileID).toContain('qrcodes')
-    expect(res.inviteCode).toBe('A7K2M9')
-    expect(res.sharePath).toBe('/pages/join/join?code=A7K2M9')
+    expect(res.inviteCode).toBe('8234')
+    expect(res.sharePath).toBe('/pages/join/join?code=8234')
   })
 
   test('INV-02 非成员 -> NOT_ROOM_MEMBER', async () => {
@@ -90,7 +90,7 @@ describe('qr', () => {
     const { ctx, room } = await makeCtx()
     await handlers.qr({ roomId: room._id }, ctx)
     const arg = ctx.cloud.openapi.wxacode.getUnlimited.mock.calls[0][0]
-    expect(arg.scene).toBe('c=A7K2M9')
+    expect(arg.scene).toBe('c=8234')
     expect(arg.scene.length).toBeLessThanOrEqual(32)
     expect(arg.page).toBe('pages/join/join')
     expect(arg.checkPath).toBe(false)
@@ -128,21 +128,21 @@ describe('qr', () => {
   test('INV-06 分享路径格式（多房间码一致）', async () => {
     const { ctx, room } = await makeCtx()
     const res = await handlers.qr({ roomId: room._id }, ctx)
-    expect(res.sharePath).toMatch(/^\/pages\/join\/join\?code=[0-9A-Z]{6}$/)
+    expect(res.sharePath).toMatch(/^\/pages\/join\/join\?code=\d{4}$/)
   })
 })
 
 describe('scene/code 解析（INV-07 / INV-08）', () => {
   test('INV-07 URL 编码 scene -> 邀请码', () => {
-    expect(parseJoinScene('c%3DA7K2M9')).toBe('A7K2M9')
+    expect(parseJoinScene('c%3D8234')).toBe('8234')
   })
 
   test('原始 scene 亦可', () => {
-    expect(parseJoinScene('c=A7K2M9')).toBe('A7K2M9')
+    expect(parseJoinScene('c=8234')).toBe('8234')
   })
 
-  test('小写 scene 规范化为大写', () => {
-    expect(parseJoinScene('c=a7k2m9')).toBe('A7K2M9')
+  test('前导零 scene 保留数字位', () => {
+    expect(parseJoinScene('c=0823')).toBe('0823')
   })
 
   test('非法 scene -> 空串', () => {
@@ -154,8 +154,8 @@ describe('scene/code 解析（INV-07 / INV-08）', () => {
   })
 
   test('INV-08 分享参数 code -> 邀请码', () => {
-    expect(parseJoinCode('A7K2M9')).toBe('A7K2M9')
-    expect(parseJoinCode(' a7k2m9 ')).toBe('A7K2M9')
+    expect(parseJoinCode('8234')).toBe('8234')
+    expect(parseJoinCode(' 0823 ')).toBe('0823')
     expect(parseJoinCode('')).toBe('')
     expect(parseJoinCode(undefined)).toBe('')
   })

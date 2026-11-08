@@ -15,7 +15,7 @@ function makeRoom(overrides = {}) {
   return {
     _id: 'r_1',
     name: '',
-    inviteCode: 'A7K2M9',
+    inviteCode: '8234',
     ownerOpenid: 'o_owner',
     memberOpenids: ['o_owner'],
     members: [{ openid: 'o_owner', joinedAt: 1000 }],
@@ -99,13 +99,14 @@ describe('cloudfunctions/room/repositories 事务', () => {
       expect(calls.updates).toHaveLength(1)
       const data = calls.updates[0]
       expect(Object.prototype.hasOwnProperty.call(data, '_id')).toBe(false)
-      expect(Object.keys(data).sort()).toEqual(['memberOpenids', 'members', 'updatedAt'])
+      expect(Object.keys(data).sort()).toEqual(['lastActivityAt', 'memberOpenids', 'members', 'updatedAt'])
       expect(data.memberOpenids).toEqual(['o_owner', 'o_new'])
       expect(data.members).toEqual([
         { openid: 'o_owner', joinedAt: 1000 },
         { openid: 'o_new', joinedAt: 2000 }
       ])
       expect(data.updatedAt).toBe(2000)
+      expect(data.lastActivityAt).toBe(2000) // v2.6：加入即活跃
       expect(calls.commits).toBe(1)
       // 返回体仍带 _id 供 handler 生成摘要
       expect(result.room._id).toBe('r_1')
@@ -146,16 +147,31 @@ describe('cloudfunctions/room/repositories 事务', () => {
   })
 
   describe('endRoom', () => {
-    test('ROOM-REP-06 结束牌局：update 数据仅 status/endedAt/updatedAt，不含 _id', async () => {
+    test('ROOM-REP-06 结束牌局：update 数据为 status/endedAt/updatedAt/endReason + 归档邀请码，不含 _id（v2.0 释放数字码位）', async () => {
       const { repo, calls } = repoWith(makeRoom())
       const result = await repo.endRoom('r_1', 5000)
 
       expect(result.status).toBe('ended')
       expect(calls.updates).toHaveLength(1)
       expect(Object.prototype.hasOwnProperty.call(calls.updates[0], '_id')).toBe(false)
-      expect(Object.keys(calls.updates[0]).sort()).toEqual(['endedAt', 'status', 'updatedAt'])
+      expect(Object.keys(calls.updates[0]).sort()).toEqual([
+        'endReason',
+        'endedAt',
+        'inviteCode',
+        'status',
+        'updatedAt'
+      ])
+      expect(calls.updates[0].inviteCode).toBe('E:r_1')
+      expect(calls.updates[0].endReason).toBe('owner') // v2.6：缺省房主手动
       expect(result.room._id).toBe('r_1')
       expect(calls.commits).toBe(1)
+    })
+
+    test('ROOM-REP-06b v2.6：reason=idle 时 endReason 落库为 idle（供详情页标注自动结束）', async () => {
+      const { repo, calls } = repoWith(makeRoom())
+      const result = await repo.endRoom('r_1', 5000, 'idle')
+      expect(calls.updates[0].endReason).toBe('idle')
+      expect(result.room.endReason).toBe('idle')
     })
 
     test('ROOM-REP-07 重复结束：返回 already-ended，回滚不提交', async () => {

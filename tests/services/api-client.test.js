@@ -9,6 +9,7 @@ const {
   call,
   ApiError,
   setRequestIdFactory,
+  clearInflight,
   NETWORK_ERROR_CODE,
   NETWORK_ERROR_MESSAGE
 } = require('../../miniprogram/services/api-client')
@@ -17,6 +18,7 @@ const FIXED_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
 
 beforeEach(() => {
   wx.cloud.callFunction.mockReset()
+  clearInflight() // v2.5 在途表为模块级状态，用例间须隔离
   setRequestIdFactory(() => FIXED_ID)
 })
 
@@ -141,5 +143,73 @@ describe('call — 网络与协议异常', () => {
     await expect(call('room', 'list', {})).rejects.toEqual(
       expect.objectContaining({ code: NETWORK_ERROR_CODE })
     )
+  })
+})
+
+describe('call — v2.5 在途去重', () => {
+  test('同名同动作同参数并发：只出网一次，结果共享', async () => {
+    let resolve
+    wx.cloud.callFunction.mockImplementation(() => new Promise((r) => { resolve = r }))
+    const p1 = call('room', 'detail', { roomId: 'r_1' })
+    const p2 = call('room', 'detail', { roomId: 'r_1' })
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
+    resolve(envelope(0, 'ok', { room: { roomId: 'r_1' } }))
+    await expect(p1).resolves.toEqual({ room: { roomId: 'r_1' } })
+    await expect(p2).resolves.toEqual({ room: { roomId: 'r_1' } })
+  })
+
+  test('payload 键序不同仍判同一请求', async () => {
+    let resolve
+    wx.cloud.callFunction.mockImplementation(() => new Promise((r) => { resolve = r }))
+    const p1 = call('entry', 'list', { roomId: 'r_1', page: 0 })
+    const p2 = call('entry', 'list', { page: 0, roomId: 'r_1' })
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
+    resolve(envelope(0, 'ok', { items: [] }))
+    await Promise.all([p1, p2])
+  })
+
+  test('动作或参数不同 -> 各自独立出网', async () => {
+    const resolvers = []
+    wx.cloud.callFunction.mockImplementation(() => new Promise((r) => { resolvers.push(r) }))
+    const p1 = call('room', 'detail', { roomId: 'r_1' })
+    const p2 = call('room', 'detail', { roomId: 'r_2' })
+    const p3 = call('room', 'list', { roomId: 'r_1' })
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(3)
+    resolvers.forEach((r) => r(envelope(0, 'ok', null)))
+    await Promise.all([p1, p2, p3])
+  })
+
+  test('落地即出表：前一次完成后同键请求重新出网', async () => {
+    wx.cloud.callFunction.mockResolvedValue(envelope(0, 'ok', { items: [] }))
+    await call('room', 'list', { page: 0 })
+    await call('room', 'list', { page: 0 })
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(2)
+  })
+
+  test('requestId / timeout 属传输元数据，不参与判同', async () => {
+    let resolve
+    wx.cloud.callFunction.mockImplementation(() => new Promise((r) => { resolve = r }))
+    const p1 = call('room', 'detail', { roomId: 'r_1' }, { requestId: 'x' })
+    const p2 = call('room', 'detail', { roomId: 'r_1' }, { requestId: 'y', timeout: 3000 })
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
+    resolve(envelope(0, 'ok', null))
+    await Promise.all([p1, p2])
+  })
+
+  test('在途失败：等待方共享同一 ApiError，失败后出表可重试', async () => {
+    let reject
+    wx.cloud.callFunction.mockImplementation(() => new Promise((_, rj) => { reject = rj }))
+    const p1 = call('room', 'detail', { roomId: 'r_1' })
+    const p2 = call('room', 'detail', { roomId: 'r_1' })
+    reject({ errMsg: 'request:fail timeout' })
+    const e1 = await p1.catch((e) => e)
+    const e2 = await p2.catch((e) => e)
+    expect(e1).toBeInstanceOf(ApiError)
+    expect(e2).toBe(e1)
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
+
+    wx.cloud.callFunction.mockResolvedValue(envelope(0, 'ok', { ok: true }))
+    await expect(call('room', 'detail', { roomId: 'r_1' })).resolves.toEqual({ ok: true })
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(2)
   })
 })

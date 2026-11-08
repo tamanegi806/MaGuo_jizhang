@@ -1,28 +1,35 @@
 <view class="container room-page">
-  <state-view wx:if="{{loading && !room}}" type="loading" />
+  <state-view wx:if="{{loading && !room}}" type="loading" class="room-state" />
   <state-view
     wx:elif="{{error && !room}}"
     type="error"
     text="{{error.message}}"
+    class="room-state"
     bind:retry="tapRetry"
   />
 
   <block wx:if="{{room}}">
-    <view class="room-head">
+    <view class="card room-head">
       <view class="room-head__row">
         <text class="room-head__name">{{room.name || '牌局'}}</text>
-        <text class="room-head__status {{room.status === 'ended' ? 'room-head__status--ended' : ''}}">{{room.status === 'ended' ? '已结束' : '进行中'}}</text>
+        <text class="pill {{room.status === 'ended' ? 'pill--muted' : ''}}">{{room.status === 'ended' ? '已结束' : '进行中'}}</text>
       </view>
-      <text class="room-head__meta">创建于 {{createdAtStr}} · {{room.memberCount}}人</text>
+      <text class="room-head__meta">创建于 {{createdAtStr}} · {{room.memberCount}} 人</text>
     </view>
 
-    <view wx:if="{{endedReadonly}}" class="readonly-bar">
-      <text class="readonly-bar__icon">⚠</text>
-      <text class="readonly-bar__text">牌局已结束，数据仅可查看</text>
+    <!-- v2.6：闲置自动结束（预告阈值以服务端 autoEndAt 为准；已结束标注区分 endReason） -->
+    <view wx:if="{{endedReadonly}}" class="notice notice--warning room-notice">
+      <text class="room-notice__icon">⚠</text>
+      <text class="room-notice__text">{{endedByIdle ? '牌局已因长期未记账自动结束，数据仅可查看' : '牌局已结束，数据仅可查看'}}</text>
     </view>
 
-    <view class="section">
-      <text class="section__title">成员</text>
+    <view wx:elif="{{idlePrewarnText}}" class="notice notice--warning room-notice">
+      <text class="room-notice__icon">⏳</text>
+      <text class="room-notice__text">{{idlePrewarnText}}</text>
+    </view>
+
+    <text class="section-label">成员</text>
+    <view class="card">
       <scroll-view scroll-x class="members" enable-flex>
         <view
           wx:for="{{members}}"
@@ -30,56 +37,64 @@
           class="members__item {{item.tappable ? 'members__item--tappable' : ''}}"
           data-openid="{{item.openid}}"
           bindtap="tapMember"
+          hover-class="members__item--hover"
+          hover-stay-time="60"
         >
           <image class="members__avatar" src="{{item.avatarFileID || ''}}" mode="aspectFill" />
           <text class="members__name">{{item.nickname}}</text>
           <text class="members__pl members__pl--{{item.plTone}}">{{item.plText}}</text>
           <text wx:if="{{item.isOwner}}" class="members__owner">房主</text>
         </view>
+        <!-- v1.8：邀请入口为成员队尾的「＋」空头像框（原「输赢记录」标题行的邀请按钮已移除） -->
+        <view
+          wx:if="{{permissions.canInvite}}"
+          class="members__item members__item--add"
+          bindtap="tapInvite"
+          hover-class="members__item--hover"
+          hover-stay-time="60"
+        >
+          <view class="members__add-avatar">＋</view>
+          <text class="members__name">邀请</text>
+        </view>
       </scroll-view>
       <text wx:if="{{permissions.canAddEntry && !endedReadonly}}" class="members__hint">点好友头像即可记一笔</text>
     </view>
 
-    <view class="section">
-      <text class="section__title">结算统计</text>
-      <settlement-list items="{{settlement}}" />
-    </view>
-
-    <view class="section">
-      <view class="section__head">
-        <text class="section__title">输赢记录</text>
-        <view wx:if="{{permissions.canInvite}}" class="section__invite" bindtap="tapInvite">邀请</view>
+    <!-- v2.0：「结算统计」模块移除；净额仍在成员头像下方展示 -->
+    <!-- v2.3：牌局头部/成员卡固定不随流水滚走，仅输赢记录纵向滚动；分页由整页触底改滚动区触底 -->
+    <text class="section-label">输赢记录</text>
+    <scroll-view scroll-y class="entries-scroll" lower-threshold="80" bindscrolltolower="onEntriesReachBottom">
+      <view class="card card--flush">
+        <state-view wx:if="{{entries.length === 0}}" type="empty" text="{{endedReadonly ? '还没有流水' : '还没有流水，点好友头像记一笔'}}" />
+        <block wx:else>
+          <view class="entries">
+            <block wx:for="{{entries}}" wx:key="entryId">
+              <view wx:if="{{index > 0}}" class="entries__divider"></view>
+              <entry-card class="entries__card" entry="{{item}}" />
+            </block>
+          </view>
+          <view wx:if="{{loadingMore}}" class="entries__more">加载中…</view>
+          <view wx:elif="{{!entriesHasMore}}" class="entries__more">没有更多了</view>
+        </block>
       </view>
+    </scroll-view>
 
-      <state-view wx:if="{{entries.length === 0}}" type="empty" text="还没有流水，点「记一笔」开始" />
-      <block wx:else>
-        <view class="entries">
-          <entry-card class="entries__card" wx:for="{{entries}}" wx:key="entryId" entry="{{item}}" />
-        </view>
-        <view wx:if="{{loadingMore}}" class="entries__more">加载中…</view>
-        <view wx:elif="{{!entriesHasMore}}" class="entries__more">没有更多了</view>
-      </block>
-    </view>
-
-    <view wx:if="{{!endedReadonly || permissions.canDeleteRoom}}" class="actions safe-area-bottom">
-      <button
-        wx:if="{{permissions.canAddEntry}}"
-        class="actions__add"
-        type="primary"
-        bindtap="tapAddEntry"
-      >记一笔</button>
+    <view
+      wx:if="{{permissions.canEndRoom || permissions.canDeleteRoom}}"
+      class="action-bar hairline-top safe-area-bottom"
+    >
       <button
         wx:if="{{permissions.canEndRoom}}"
-        class="actions__end"
-        type="default"
+        class="btn btn--primary btn--block"
+        hover-class="btn--primary-hover"
         loading="{{submitting}}"
         disabled="{{submitting}}"
         bindtap="tapEnd"
       >结束牌局</button>
       <button
         wx:if="{{permissions.canDeleteRoom}}"
-        class="actions__delete"
-        type="default"
+        class="btn btn--block actions__delete"
+        hover-class="actions__delete--hover"
         loading="{{submitting}}"
         disabled="{{submitting}}"
         bindtap="tapDelete"
@@ -89,12 +104,25 @@
 
   <invite-sheet
     visible="{{inviteVisible}}"
-    inviteCode="{{inviteCode}}"
+    room-name="{{room.name}}"
+    member-count="{{room.memberCount}}"
+    members="{{members}}"
+    invite-code="{{inviteCode}}"
     qrFileID="{{qrFileID}}"
-    qrLoading="{{qrLoading}}"
-    qrError="{{qrError}}"
+    qr-loading="{{qrLoading}}"
+    qr-error="{{qrError}}"
     bind:close="onInviteClose"
     bind:retry="onInviteRetry"
     bind:copyCode="onCopyCode"
+  />
+
+  <entry-sheet
+    visible="{{entryVisible}}"
+    nickname="{{entryTarget.nickname}}"
+    avatarFileID="{{entryTarget.avatarFileID}}"
+    submitting="{{entrySubmitting}}"
+    errorText="{{entryError}}"
+    bind:close="onEntryClose"
+    bind:confirm="onEntryConfirm"
   />
 </view>

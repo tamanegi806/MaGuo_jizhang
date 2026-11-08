@@ -43,7 +43,7 @@ async function qr(payload, ctx) {
 
   const scene = `c=${room.inviteCode}`
   if (scene.length > SCENE_MAX) {
-    // 6 位码不可能超长，防御数据损坏
+    // 4 位数字码（c=xxxx）不可能超长，防御数据损坏
     throw new AppError(ErrorCodes.INTERNAL_ERROR, 'scene exceeds 32 chars')
   }
 

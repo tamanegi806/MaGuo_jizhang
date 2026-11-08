@@ -16,11 +16,11 @@ beforeEach(() => mockCall.mockReset())
 
 describe('getRoomQr', () => {
   test('透传 roomId 并返回云函数结果', async () => {
-    const payload = { fileID: 'cloud://x', inviteCode: 'A7K2M9', sharePath: '/pages/join/join?code=A7K2M9' }
+    const payload = { fileID: 'cloud://x', inviteCode: '8234', sharePath: '/pages/join/join?code=8234' }
     mockCall.mockResolvedValue(payload)
     const res = await inviteService.getRoomQr('r_1')
     expect(mockCall).toHaveBeenCalledWith('invite', 'qr', { roomId: 'r_1' })
-    expect(res.inviteCode).toBe('A7K2M9')
+    expect(res.inviteCode).toBe('8234')
   })
 
   test('ROOM_ENDED 透传', async () => {
@@ -36,27 +36,27 @@ describe('getRoomQr', () => {
 
 describe('getSharePath / getShareMessage', () => {
   test('分享路径格式', () => {
-    expect(inviteService.getSharePath('A7K2M9')).toBe('/pages/join/join?code=A7K2M9')
+    expect(inviteService.getSharePath('8234')).toBe('/pages/join/join?code=8234')
   })
 
   test('分享消息含牌局名与路径', () => {
-    const msg = inviteService.getShareMessage({ name: '周五夜场', inviteCode: 'A7K2M9' })
+    const msg = inviteService.getShareMessage({ name: '周五夜场', inviteCode: '8234' })
     expect(msg.title).toContain('周五夜场')
-    expect(msg.path).toBe('/pages/join/join?code=A7K2M9')
+    expect(msg.path).toBe('/pages/join/join?code=8234')
   })
 
   test('房间名缺失时标题兜底', () => {
-    const msg = inviteService.getShareMessage({ inviteCode: 'ABC234' })
+    const msg = inviteService.getShareMessage({ inviteCode: '0421' })
     expect(msg.title).toBeTruthy()
-    expect(msg.path).toContain('ABC234')
+    expect(msg.path).toContain('0421')
   })
 })
 
 describe('parseJoinScene', () => {
   test.each([
-    ['c=A7K2M9', 'A7K2M9'],
-    ['c%3DA7K2M9', 'A7K2M9'],
-    ['c=a7k2m9', 'A7K2M9'],
+    ['c=8234', '8234'],
+    ['c%3D8234', '8234'],
+    ['c=0823', '0823'],
     ['', ''],
     ['garbage', ''],
     ['c=', ''],
@@ -68,8 +68,8 @@ describe('parseJoinScene', () => {
 })
 
 describe('parseJoinCode', () => {
-  test('trim + 大写规范化', () => {
-    expect(inviteService.parseJoinCode(' a7k2m9 ')).toBe('A7K2M9')
+  test('trim 规范化（v2.0 数字码）', () => {
+    expect(inviteService.parseJoinCode(' 0823 ')).toBe('0823')
     expect(inviteService.parseJoinCode('')).toBe('')
     expect(inviteService.parseJoinCode(null)).toBe('')
   })

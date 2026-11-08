@@ -15,8 +15,9 @@ const _charSet = new Set(_alphabetArr)
 /**
  * 生成随机邀请码
  * @param {(n?: number) => number} rng - 返回 [0,1) 的随机函数（无参）或 (min,max)=>int（双参）。测试时注入固定序列。
- * @param {number} [length] - 码长，默认 6
- * @returns {string}
+ * @param {number} [length] - 码长，默认 INVITE_CODE_LENGTH（v2.0 起 4）
+ * @returns {string} 纯数字码（字符集 '0123456789'，v2.0 起口头传码友好；空间 10^4，
+ *   结束牌局释放码位见 room 仓储 endRoom 的归档前缀，码池按「进行中牌局数」计而非累计建局数）
  */
 function generateCode(rng, length) {
   if (typeof rng !== 'function') {

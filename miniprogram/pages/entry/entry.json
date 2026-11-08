@@ -1,7 +1,0 @@
-{
-  "usingComponents": {
-    "member-picker": "/components/member-picker/member-picker",
-    "amount-input": "/components/amount-input/amount-input",
-    "state-view": "/components/state-view/state-view"
-  }
-}

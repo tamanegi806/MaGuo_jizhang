@@ -59,12 +59,13 @@ async function add(payload, ctx) {
 
   // 事务：重读房间 -> 状态/成员校验 -> normalize 校验 -> 插入
   // validateInRoom 抛出的 AppError 会中止事务并原样传播
+  const createdAt = ctx.now()
   const result = await ctx.entryRepo.createAtomically(
     {
       roomId: p.roomId,
       clientRequestId: p.clientRequestId,
       createdBy: ctx.openid,
-      createdAt: ctx.now()
+      createdAt
     },
     (room) => {
       if (!room.memberOpenids.includes(ctx.openid)) {
@@ -91,6 +92,18 @@ async function add(payload, ctx) {
       throw new AppError(ErrorCodes.INTERNAL_ERROR, 'entry duplicate race unresolved')
     }
     return { entry: await enrichEntry(ctx, raced), duplicated: true }
+  }
+
+  if (result.status === 'created') {
+    // v2.6：记账即活跃——事务提交后单独推进房间 lastActivityAt（重置闲置自动结束倒计时）。
+    // 不入事务是刻意的：同牌局并发记账会在 rooms 上撞事务写冲突（startTransaction 不自动重试），
+    // 那会把一次正常记账变成 5001「服务异常」。此处失败仅退化为「少重置一次倒计时」，
+    // 账目本身已安全落库，故记一条 warn 不回滚、不报错。
+    try {
+      await ctx.roomRepo.bumpActivity(p.roomId, createdAt)
+    } catch (err) {
+      if (ctx.log && ctx.log.warn) ctx.log.warn('bumpActivity failed', p.roomId, err && err.message)
+    }
   }
 
   return { entry: await enrichEntry(ctx, result.entry), duplicated: false }

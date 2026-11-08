@@ -1,39 +1,43 @@
-/* amount-input — 复用 app.wxss 设计变量 */
+/* amount-input — 微信「输入金额」观感：大号数字 + ¥ 前缀 + 底部 hairline
+   自定义组件不继承 app.wxss 的类选择器，故只复用其 CSS 变量 */
 .amount-input__wrap {
   display: flex;
-  align-items: center;
+  align-items: flex-end; /* ¥ 与数字底对齐（微信输入金额观感） */
   min-height: 96rpx; /* ≥44px 点击区域 */
-  padding: 0 var(--padding-base);
-  border: 1rpx solid var(--color-border);
-  border-radius: var(--radius-base);
-  background-color: #ffffff;
+  padding: 0 8rpx;
+  border-bottom: 1rpx solid var(--color-border);
 }
 
 .amount-input__symbol {
   margin-right: 12rpx;
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
+  font-weight: 600;
   color: var(--color-text);
 }
 
 .amount-input__field {
   flex: 1;
-  font-size: var(--font-size-lg);
+  min-width: 0;
+  font-size: 56rpx;
+  font-weight: 600;
+  line-height: 1.4;
+  height: 80rpx; /* 原生 input 默认高仅 1.4em，装不下 56rpx 大号数字会裁切（v2.0 修复显示不全） */
   color: var(--color-text);
 }
 
 .amount-input__placeholder {
-  color: var(--color-text-secondary);
+  font-weight: 400;
+  color: var(--color-text-tertiary);
 }
 
 .amount-input__error {
   display: block;
-  margin-top: 8rpx;
+  margin-top: 12rpx;
   padding-left: 8rpx;
   font-size: var(--font-size-sm);
   color: var(--color-danger);
 }
 
 .amount-input--disabled .amount-input__wrap {
-  background-color: var(--color-bg);
-  opacity: 0.6;
+  opacity: 0.5;
 }

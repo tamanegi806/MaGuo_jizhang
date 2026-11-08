@@ -1,27 +1,49 @@
 <view wx:if="{{visible}}" class="invite-sheet">
   <view class="invite-sheet__mask" bindtap="onClose"></view>
   <view class="invite-sheet__panel">
+    <view class="invite-sheet__handle"></view>
+
     <view class="invite-sheet__header">
       <text class="invite-sheet__title">邀请好友加入牌局</text>
       <view class="invite-sheet__close" bindtap="onClose">×</view>
     </view>
 
-    <view class="invite-sheet__qr-area">
-      <view wx:if="{{qrLoading}}" class="invite-sheet__skeleton"></view>
-      <image wx:elif="{{qrFileID}}" class="invite-sheet__qr-img" src="{{qrFileID}}" mode="aspectFit" />
-      <view wx:else class="invite-sheet__qr-error">
-        <text class="invite-sheet__qr-error-text">{{errorText}}</text>
-        <view class="invite-sheet__retry" bindtap="onRetry">重试</view>
+    <!-- 邀请卡：牌桌淡绿头 + 白色牌身，承载牌局名/成员/小程序码/邀请码 -->
+    <view class="invite-card">
+      <view class="invite-card__head">
+        <text class="invite-card__name">{{roomName || '牌局'}}</text>
+        <view class="invite-card__faces">
+          <image
+            wx:for="{{faces}}"
+            wx:key="key"
+            class="invite-card__face"
+            src="{{item.avatarFileID}}"
+            mode="aspectFill"
+          />
+          <text wx:if="{{moreCount > 0}}" class="invite-card__more">+{{moreCount}}</text>
+        </view>
+      </view>
+      <text class="invite-card__meta">{{memberCount}} 人已在牌局中</text>
+
+      <view class="invite-sheet__qr-area">
+        <view wx:if="{{qrLoading}}" class="invite-sheet__skeleton"></view>
+        <image wx:elif="{{qrFileID}}" class="invite-sheet__qr-img" src="{{qrFileID}}" mode="aspectFit" />
+        <view wx:else class="invite-sheet__qr-error">
+          <text class="invite-sheet__qr-error-text">{{errorText}}</text>
+          <view class="invite-sheet__retry" bindtap="onRetry">重试</view>
+        </view>
+      </view>
+
+      <view class="invite-card__code-block">
+        <text class="invite-sheet__code-label">邀请码</text>
+        <view class="invite-card__tile">
+          <text class="invite-sheet__code">{{inviteCode}}</text>
+        </view>
+        <view class="invite-sheet__copy" bindtap="onCopyCode">复制邀请码</view>
       </view>
     </view>
 
-    <view class="invite-sheet__code-row">
-      <text class="invite-sheet__code-label">邀请码</text>
-      <text class="invite-sheet__code">{{inviteCode}}</text>
-      <view class="invite-sheet__copy" bindtap="onCopyCode">复制</view>
-    </view>
-
     <button class="invite-sheet__share" open-type="share">转发给好友</button>
-    <text class="invite-sheet__hint">好友扫码或点击转发卡片即可加入当前牌局</text>
+    <text class="invite-sheet__hint">好友扫码或点击转发卡片即可加入；牌局结束后邀请码失效</text>
   </view>
 </view>

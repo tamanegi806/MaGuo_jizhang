@@ -1,0 +1,9 @@
+{
+  "triggers": [
+    {
+      "name": "autoEndIdle",
+      "type": "timer",
+      "config": "0 30 4 * * * *"
+    }
+  ]
+}

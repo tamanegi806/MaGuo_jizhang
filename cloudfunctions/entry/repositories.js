@@ -42,7 +42,12 @@ function createRepositories(db, _) {
 
     /**
      * 事务：按 _id 读房间 -> 校验回调 -> 插入一条流水
-     * validateInRoom 抛 AppError 则回滚并传播（只读取一个房间文档、插入一条流水）
+     * validateInRoom 抛 AppError 则回滚并传播（读一个房间快照、插一条流水）
+     *
+     * v2.6 修正：**事务内不得写 rooms 文档**。云开发事务「读为快照、写才加事务锁」，
+     * 若在此处顺带 update 房间，同牌局两人同时记账会命中写冲突（DATABASE_TRANSACTION_CONFLICT），
+     * 而 startTransaction 不会自动重试 -> 整笔事务回滚 -> 用户看到 5001「服务异常」且流水丢失。
+     * 活跃时间改由 commit 之后 `bumpActivity` 单文档更新推进（非事务更新遇锁只阻塞、不失败）。
      * @param {{roomId:string, clientRequestId:string, createdBy:string, createdAt:number}} meta
      * @param {(room:object) => object} validateInRoom
      * @returns {Promise<{status:'created'|'duplicate'|'not-found', entry?:object}>}
@@ -87,6 +92,21 @@ function createRepositories(db, _) {
         }
         throw err
       }
+    },
+
+    /**
+     * v2.6：推进房间活跃时间（重置闲置自动结束倒计时）
+     * 非事务单文档更新：并发时由云数据库阻塞到对方事务锁释放，不会失败；
+     * 与流水插入不同事务，故可能「流水已落、活跃时间未推进」（少一次重置），
+     * 属可接受降级——下一笔成功记账仍会推进，不影响账目正确性。
+     * 同时刷新 `updatedAt`：使定时器 `idx_status_updated` 的扫描顺序与闲置判据同向，
+     * 也让历史房间的回退口径 `max(createdAt, updatedAt)` 对记账同样灵敏。
+     * 失败原样上抛，由调用方（handlers.add）决定是否容忍。
+     * @param {string} roomId
+     * @param {number} at 活跃基准（该笔流水 createdAt）
+     */
+    async bumpActivity(roomId, at) {
+      return rooms.doc(roomId).update({ data: { lastActivityAt: at, updatedAt: at } })
     },
 
     /**

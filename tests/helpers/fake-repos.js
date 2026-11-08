@@ -137,10 +137,29 @@ class FakeRoomRepo {
       ...room,
       memberOpenids: [...room.memberOpenids, openid],
       members: [...room.members, { openid, joinedAt }],
-      updatedAt: joinedAt
+      updatedAt: joinedAt,
+      lastActivityAt: joinedAt // v2.6：加入推进活跃时间
     }
     this._data.set(roomId, updated)
     return { status: 'joined', room: updated }
+  }
+
+  /**
+   * v2.6：列出进行中房间（按 updatedAt 升序，供闲置扫描）
+   */
+  async listActive() {
+    return [...this._data.values()]
+      .filter((r) => r.status === ROOM_STATUS_ACTIVE)
+      .sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0))
+  }
+
+  /** v2.6：真实仓储中由 handlers.add 在事务提交后调用（非事务单文档更新，记账即活跃） */
+  async bumpActivity(roomId, at) {
+    const room = this._data.get(roomId)
+    if (!room) return null
+    const updated = { ...room, lastActivityAt: at, updatedAt: at }
+    this._data.set(roomId, updated)
+    return updated
   }
 
   /**
@@ -155,15 +174,23 @@ class FakeRoomRepo {
 
   /**
    * 结束牌局（模拟事务内校验 active）
+   * v2.0：与真实仓储一致，结束时归档 inviteCode 释放数字码位（E:{roomId}）
    * @returns {Promise<{status:string, room:object}>}
    */
-  async endRoom(roomId, now) {
+  async endRoom(roomId, now, reason) {
     const room = this._data.get(roomId)
     if (!room) return { status: 'not-found', room: null }
     if (room.status === ROOM_STATUS_ENDED) {
       return { status: 'already-ended', room }
     }
-    const updated = { ...room, status: ROOM_STATUS_ENDED, endedAt: now, updatedAt: now }
+    const updated = {
+      ...room,
+      status: ROOM_STATUS_ENDED,
+      endedAt: now,
+      updatedAt: now,
+      endReason: reason || 'owner', // v2.6
+      inviteCode: `E:${roomId}`
+    }
     this._data.set(roomId, updated)
     return { status: 'ended', room: updated }
   }
@@ -222,6 +249,8 @@ class FakeEntryRepo {
     }
     const stored = { ...doc, roomId: meta.roomId, clientRequestId: meta.clientRequestId, createdBy: meta.createdBy, createdAt: meta.createdAt, _id: nextId('e') }
     this._data.push(stored)
+    // v2.6 修正：活跃时间不在此推进（真实实现同样只在事务内插流水），
+    // 由 handlers.add 提交后调用 roomRepo.bumpActivity，以免并发记账在 rooms 上撞事务写冲突
     return { status: 'created', entry: { ...stored } }
   }
 

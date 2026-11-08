@@ -3,14 +3,14 @@
     "pages/index/index",
     "pages/join/join",
     "pages/room/room",
-    "pages/entry/entry",
     "pages/profile/profile"
   ],
   "window": {
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTitleText": "麻将记账",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#f5f5f5"
+    "backgroundColor": "#f2f2f2",
+    "backgroundTextStyle": "dark"
   },
   "sitemapLocation": "sitemap.json",
   "style": "v2"

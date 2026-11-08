@@ -1,0 +1,130 @@
+/* entry-sheet — 记账弹层；只复用 app.wxss 的 CSS 变量
+   v2.1：由底部弹层上移至屏幕上半部（金额输入聚焦弹起数字键盘时不再遮挡输入区与确认按钮）；
+   v2.2：贴顶通栏改为**上半部悬浮圆角卡片**——距顶 120rpx+安全区、左右 40rpx 留边、
+   四角圆角、下缘柔影；头部居中（头像在上、昵称在下，× 移至右上角），金额区淡绿底块；
+   拖拽条 pill 移除（弹层本就不支持拖拽，留着像残件）
+   invite-sheet 仍为底部弹层，不受影响 */
+.entry-sheet {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 100;
+}
+
+.entry-sheet__mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: var(--color-mask);
+}
+
+.entry-sheet__panel {
+  position: absolute;
+  top: calc(120rpx + constant(safe-area-inset-top));
+  top: calc(120rpx + env(safe-area-inset-top));
+  right: 40rpx;
+  left: 40rpx;
+  padding: 32rpx var(--padding-base) 40rpx;
+  border-radius: var(--radius-card); /* 悬浮卡：四角圆角 */
+  background-color: var(--color-card);
+  box-shadow: 0 24rpx 64rpx rgba(0, 0, 0, 0.35); /* 遮罩压暗背景，柔影把卡片托起 */
+}
+
+.entry-sheet__close {
+  position: absolute;
+  top: 12rpx;
+  right: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96rpx;
+  height: 96rpx; /* ≥44px */
+  font-size: 44rpx;
+  line-height: 1;
+  color: var(--color-text-tertiary);
+}
+
+.entry-sheet__target {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 8rpx;
+}
+
+.entry-sheet__avatar {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: var(--radius-avatar);
+  background-color: var(--color-fill);
+}
+
+.entry-sheet__title {
+  max-width: 100%;
+  margin-top: 16rpx;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.entry-sheet__amount-block {
+  margin: 40rpx 0 32rpx;
+  padding: 24rpx 32rpx 20rpx;
+  background-color: var(--color-primary-tint); /* 淡绿底块：金额输入聚焦区 */
+  border-radius: var(--radius-card);
+}
+
+.entry-sheet__amount-label {
+  display: block;
+  margin-bottom: 8rpx;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.entry-sheet__error {
+  margin-bottom: 24rpx;
+  padding: 20rpx 24rpx;
+  font-size: var(--font-size-base);
+  color: var(--color-danger);
+  background-color: var(--tint-danger);
+  border-radius: var(--radius-base);
+}
+
+.entry-sheet__submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 96rpx; /* ≥44px */
+  font-size: var(--font-size-lg);
+  color: var(--color-text-inverse);
+  background-color: var(--color-primary);
+  border-radius: var(--radius-base);
+}
+
+.entry-sheet__submit::after {
+  border: none;
+}
+
+.entry-sheet__submit--hover {
+  background-color: var(--color-primary-pressed);
+}
+
+.entry-sheet__submit[disabled] {
+  color: var(--color-text-inverse);
+  background-color: var(--color-border);
+}
+
+.entry-sheet__hint {
+  display: block;
+  margin-top: 20rpx;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}

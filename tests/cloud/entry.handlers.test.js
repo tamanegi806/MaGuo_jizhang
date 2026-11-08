@@ -306,3 +306,47 @@ describe('list', () => {
     await expectCode(() => handlers.list({}, w.ctx), ErrorCodes.INVALID_PARAM)
   })
 })
+
+// ---------------- v2.6 记账推进闲置倒计时 ----------------
+
+describe('add 与闲置自动结束倒计时（v2.6）', () => {
+  test('ENTRY-IDLE-01 记账成功 -> 事务提交后推进房间 lastActivityAt 为该笔 createdAt', async () => {
+    const w = await buildWorld()
+    const before = await w.roomRepo.findById(w.room._id)
+    expect(before.lastActivityAt).toBeUndefined()
+    const res = await handlers.add(validInput({ roomId: w.room._id }), w.ctx)
+    const after = await w.roomRepo.findById(w.room._id)
+    expect(after.lastActivityAt).toBe(res.entry.createdAt)
+  })
+
+  test('ENTRY-IDLE-02 幂等重放（同 clientRequestId）-> 不算新活动，活跃时间保持第一次的值', async () => {
+    const w = await buildWorld()
+    const first = await handlers.add(validInput({ roomId: w.room._id, clientRequestId: 'dup-1' }), w.ctx)
+    const pinned = (await w.roomRepo.findById(w.room._id)).lastActivityAt
+    expect(pinned).toBe(first.entry.createdAt)
+    const again = await handlers.add(validInput({ roomId: w.room._id, clientRequestId: 'dup-1' }), w.ctx)
+    expect(again.duplicated).toBe(true)
+    expect((await w.roomRepo.findById(w.room._id)).lastActivityAt).toBe(pinned)
+  })
+
+  test('ENTRY-IDLE-03 活跃时间推进失败（锁超时等）-> 流水照常成功，仅记 warn，不演变为 5001', async () => {
+    const w = await buildWorld()
+    w.roomRepo.bumpActivity = async () => {
+      throw new Error('获取文档锁超时')
+    }
+    const log = { warn: jest.fn() }
+    const res = await handlers.add(validInput({ roomId: w.room._id }), { ...w.ctx, log })
+    expect(res.duplicated).toBe(false)
+    expect(await w.entryRepo.countByRoom(w.room._id)).toBe(1)
+    expect(log.warn).toHaveBeenCalledTimes(1)
+    expect(log.warn.mock.calls[0][0]).toBe('bumpActivity failed')
+  })
+
+  test('ENTRY-IDLE-04 记账被拒（牌局已结束）-> 不推进活跃时间', async () => {
+    const w = await buildWorld({ status: 'ended' })
+    await w.roomRepo.bumpActivity(w.room._id, 1) // 先固定一个基准
+    const pinned = (await w.roomRepo.findById(w.room._id)).lastActivityAt
+    await expectCode(() => handlers.add(validInput({ roomId: w.room._id }), w.ctx), ErrorCodes.ROOM_ENDED)
+    expect((await w.roomRepo.findById(w.room._id)).lastActivityAt).toBe(pinned)
+  })
+})

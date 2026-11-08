@@ -1,0 +1,28 @@
+<view wx:if="{{visible}}" class="entry-sheet">
+  <view class="entry-sheet__mask" bindtap="onClose"></view>
+  <view class="entry-sheet__panel">
+    <view class="entry-sheet__close" bindtap="onClose">×</view>
+
+    <view class="entry-sheet__target">
+      <image class="entry-sheet__avatar" src="{{avatarFileID || ''}}" mode="aspectFill" />
+      <text class="entry-sheet__title">向 {{nickname}} 支出</text>
+    </view>
+
+    <view class="entry-sheet__amount-block">
+      <text class="entry-sheet__amount-label">金额（元）</text>
+      <amount-input id="amountInput" disabled="{{submitting}}" bind:change="onAmountChange" />
+    </view>
+
+    <view wx:if="{{errorText}}" class="entry-sheet__error">{{errorText}}</view>
+
+    <button
+      class="entry-sheet__submit"
+      hover-class="entry-sheet__submit--hover"
+      loading="{{submitting}}"
+      disabled="{{!amountCents || submitting}}"
+      bindtap="onConfirm"
+    >{{submitting ? '记录中…' : '确认支出'}}</button>
+
+    <text class="entry-sheet__hint">该笔将计入你与 {{nickname}} 的输赢结算</text>
+  </view>
+</view>

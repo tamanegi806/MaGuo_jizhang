@@ -52,7 +52,7 @@ describe('utils/error-message friendlyMessage', () => {
     [ErrorCodes.NOT_ROOM_MEMBER, '你不在该牌局中'],
     [ErrorCodes.NOT_ROOM_OWNER, '只有房主可以操作'],
     [ErrorCodes.INVALID_INVITE_CODE, '邀请码无效，请向好友确认'],
-    [ErrorCodes.INVALID_INVITE_CODE_FORMAT, '邀请码应为 6 位字母或数字'],
+    [ErrorCodes.INVALID_INVITE_CODE_FORMAT, '邀请码应为 4 位数字'],
     [ErrorCodes.SAME_PAYER_PAYEE, '付款人和收款人不能是同一人'],
     [ErrorCodes.INVALID_AMOUNT, '请输入大于 0 的金额'],
     [ErrorCodes.INVALID_MEMBER, '成员选择无效，请重新选择'],

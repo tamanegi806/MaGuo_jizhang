@@ -23,7 +23,7 @@ const CODE_MESSAGES = {
   [ErrorCodes.INVALID_MEMBER]: '成员选择无效，请重新选择',
   [ErrorCodes.PAYER_NOT_SELF]: '只能记录自己付出去的流水',
   [ErrorCodes.INVALID_PARAM]: '操作有误，请重试',
-  [ErrorCodes.INVALID_INVITE_CODE_FORMAT]: '邀请码应为 6 位字母或数字',
+  [ErrorCodes.INVALID_INVITE_CODE_FORMAT]: '邀请码应为 4 位数字',
   [ErrorCodes.INTERNAL_ERROR]: '服务异常，请稍后再试',
   [ErrorCodes.QR_GENERATE_FAILED]: '小程序码生成失败'
 }

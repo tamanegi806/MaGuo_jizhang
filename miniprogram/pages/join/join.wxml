@@ -1,17 +1,19 @@
-<view class="container">
-  <view wx:if="{{autoJoining && submitting}}" class="auto-join">
-    <text class="auto-join__text">正在加入…</text>
+<view class="container join-page">
+  <view wx:if="{{autoJoining && submitting}}" class="card auto-join">
+    <text class="auto-join__text">正在加入牌局…</text>
     <text class="auto-join__code">{{code}}</text>
   </view>
 
   <block wx:else>
-    <view class="form">
-      <text class="form__label">输入 6 位邀请码</text>
+    <text class="section-label join-label">输入 4 位邀请码</text>
+    <view class="card form">
       <input
         class="form__input"
         value="{{code}}"
-        placeholder="A7K2M9"
-        maxlength="6"
+        type="number"
+        placeholder="1234"
+        placeholder-class="form__placeholder"
+        maxlength="4"
         disabled="{{submitting}}"
         bindinput="onInputCode"
       />
@@ -21,8 +23,8 @@
     </view>
 
     <button
-      class="submit"
-      type="primary"
+      class="btn btn--primary btn--block submit"
+      hover-class="btn--primary-hover"
       loading="{{submitting}}"
       disabled="{{submitting}}"
       bindtap="tapJoin"

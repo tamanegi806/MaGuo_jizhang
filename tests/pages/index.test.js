@@ -11,6 +11,7 @@ jest.mock('../../miniprogram/services/room-service', () => ({
 }))
 
 const roomService = require('../../miniprogram/services/room-service')
+const cache = require('../../miniprogram/utils/cache')
 const {
   loadPageOptions,
   createInstance,
@@ -29,7 +30,7 @@ function roomSummary(over = {}) {
   return {
     roomId: 'r_1',
     name: '周五夜场',
-    inviteCode: 'A7K2M9',
+    inviteCode: '8234',
     status: 'active',
     memberCount: 4,
     createdAt: TS,
@@ -43,6 +44,7 @@ let globalData
 
 beforeEach(() => {
   jest.clearAllMocks()
+  cache.clearAll() // v2.5 内存缓存为模块级状态，用例间须隔离
   wx = createWxMock()
   global.wx = wx
   globalData = mockGetApp({ user: { openid: 'o_me', nickname: '我', profileComplete: true }, needProfile: false })
@@ -62,6 +64,13 @@ describe('pages/index', () => {
     await flushPromises()
     expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/profile/profile' })
     expect(roomService.listRooms).not.toHaveBeenCalled()
+  })
+
+  test('v2.4 onShow 顶部用户空 avatarFileID -> 兜底默认小人路径', async () => {
+    globalData.user.avatarFileID = ''
+    roomService.listRooms.mockResolvedValue({ items: [], page: 0, hasMore: false })
+    const inst = await shown(createInstance(opts))
+    expect(inst.data.user.avatarFileID).toBe('/images/default-avatar.png')
   })
 
   test('onShow 加载第 0 页并映射展示字段（v1.4 卡片不再显示名称）', async () => {
@@ -189,5 +198,55 @@ describe('pages/index', () => {
     resolve({ room: { roomId: 'r_new' } })
     await first
     expect(wx.navigateTo).toHaveBeenCalledTimes(1)
+  })
+
+  describe('v2.5 内存缓存 SWR', () => {
+    test('二次 onShow：先同步渲染缓存第 0 页（不出骨架），随后后台校准覆盖', async () => {
+      roomService.listRooms.mockResolvedValue({ items: [roomSummary()], hasMore: true })
+      await shown(createInstance(opts)) // 第一次进入：写入缓存
+
+      roomService.listRooms.mockResolvedValue({ items: [roomSummary({ roomId: 'r_2' })], hasMore: false })
+      const inst2 = createInstance(opts)
+      inst2.onShow()
+      // 同步部分即已渲染旧数据，且未经过 loading 骨架
+      expect(inst2.data.rooms.map((r) => r.roomId)).toEqual(['r_1'])
+      expect(inst2.data.loading).toBe(false)
+      expect(roomService.listRooms).toHaveBeenCalledTimes(2) // 后台校准请求已发出
+
+      await flushPromises()
+      expect(inst2.data.rooms.map((r) => r.roomId)).toEqual(['r_2'])
+      expect(inst2.data.hasMore).toBe(false)
+    })
+
+    test('后台校准失败 -> 保留已渲染列表，仅 Toast 不进错误页', async () => {
+      roomService.listRooms.mockResolvedValue({ items: [roomSummary()], hasMore: false })
+      await shown(createInstance(opts))
+
+      roomService.listRooms.mockRejectedValue({ code: 'NETWORK_ERROR' })
+      const inst2 = createInstance(opts)
+      await shown(inst2)
+      expect(inst2.data.rooms.map((r) => r.roomId)).toEqual(['r_1'])
+      expect(inst2.data.error).toBeNull()
+      expect(wx.showToast).toHaveBeenCalledWith({ title: '网络异常，请检查连接', icon: 'none' })
+    })
+
+    test('创建成功 -> 列表缓存写时失效', async () => {
+      roomService.listRooms.mockResolvedValue({ items: [roomSummary()], hasMore: false })
+      await shown(createInstance(opts))
+      expect(cache.get(cache.keys.roomsList())).toBeDefined()
+
+      roomService.createRoom.mockResolvedValue({ room: { roomId: 'r_new' } })
+      await createInstance(opts).tapCreate()
+      expect(cache.get(cache.keys.roomsList())).toBeUndefined()
+    })
+
+    test('无缓存首次进入 -> 仍走 loading 骨架后填充', async () => {
+      roomService.listRooms.mockResolvedValue({ items: [roomSummary()], hasMore: false })
+      const inst = createInstance(opts)
+      inst.onShow()
+      expect(inst.data.loading).toBe(true) // 未命中缓存：保持旧行为
+      await flushPromises()
+      expect(inst.data.loading).toBe(false)
+    })
   })
 })

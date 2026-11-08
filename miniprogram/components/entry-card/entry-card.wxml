@@ -1,11 +1,11 @@
 <view class="entry-card" catchtap="onTap">
   <view class="entry-card__main">
-    <text class="entry-card__from">{{display.from}}</text>
-    <text class="entry-card__arrow">→</text>
-    <text class="entry-card__to">{{display.to}}</text>
-  </view>
-  <view class="entry-card__meta">
-    <text wx:if="{{display.timeText}}" class="entry-card__time">{{display.timeText}}</text>
+    <view class="entry-card__who">
+      <text class="entry-card__from">{{display.from}}</text>
+      <text class="entry-card__arrow">→</text>
+      <text class="entry-card__to">{{display.to}}</text>
+    </view>
     <text class="entry-card__amount">{{display.amountText}}</text>
   </view>
+  <text wx:if="{{display.timeText}}" class="entry-card__time">{{display.timeText}}</text>
 </view>

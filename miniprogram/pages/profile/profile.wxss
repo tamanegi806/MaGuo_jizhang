@@ -1,6 +1,6 @@
+/* 完善资料 — 结构与配色走 app.wxss 的令牌与工具类（card / cell / btn / notice） */
 .profile-page {
-  padding-top: 48rpx;
-  text-align: center;
+  padding-top: 64rpx;
 }
 
 .avatar-area {
@@ -9,6 +9,7 @@
   align-items: center;
 }
 
+/* 头像选择按钮：微信圆角方形 + 虚线占位框 */
 .avatar-btn {
   display: flex;
   align-items: center;
@@ -16,15 +17,23 @@
   width: 160rpx;
   height: 160rpx;
   padding: 0;
-  border-radius: 50%;
-  background-color: var(--color-bg);
-  border: 1rpx solid var(--color-border);
+  background-color: var(--color-fill);
+  border: 2rpx dashed var(--color-border);
+  border-radius: var(--radius-avatar);
+}
+
+.avatar-btn::after {
+  border: none;
+}
+
+.avatar-btn--hover {
+  background-color: var(--color-pressed);
 }
 
 .avatar-btn__img {
-  width: 158rpx;
-  height: 158rpx;
-  border-radius: 50%;
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: var(--radius-avatar);
 }
 
 .avatar-btn__placeholder {
@@ -39,72 +48,75 @@
   color: var(--color-text-secondary);
 }
 
+/* 昵称一行：左标签右输入（微信「编辑个人信息」节奏） */
 .form {
-  margin-top: 48rpx;
-  text-align: left;
+  margin-top: 64rpx;
+  padding: 0;
+}
+
+.form__row {
+  display: flex;
+  align-items: center;
+  min-height: var(--cell-height);
+  padding: 0 var(--padding-base);
 }
 
 .form__label {
-  display: block;
-  margin-bottom: 16rpx;
-  font-size: var(--font-size-base);
-  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  margin-right: 24rpx;
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
 }
 
 .form__input {
-  min-height: 96rpx; /* ≥44px */
-  padding: 0 24rpx;
+  flex: 1;
+  min-width: 0;
   font-size: var(--font-size-lg);
-  border: 1rpx solid var(--color-border);
-  border-radius: var(--radius-base);
-  background-color: #ffffff;
+  text-align: right;
+  color: var(--color-text);
+}
+
+.form__placeholder {
+  color: var(--color-text-tertiary);
 }
 
 .form__error {
   display: block;
-  margin-top: 8rpx;
-  padding-left: 8rpx;
+  padding: 0 var(--padding-base) 20rpx;
   font-size: var(--font-size-sm);
   color: var(--color-danger);
 }
 
 .page-error {
-  margin-top: 24rpx;
-  padding: 16rpx 24rpx;
-  font-size: var(--font-size-base);
-  color: var(--color-danger);
-  background-color: rgba(255, 77, 79, 0.08);
-  border-radius: var(--radius-base);
-  text-align: left;
+  margin-top: var(--gap-card);
 }
 
 .save {
-  width: 100%;
-  min-height: 96rpx; /* ≥44px */
-  margin-top: 48rpx;
-  font-size: var(--font-size-lg);
-  border-radius: var(--radius-base);
+  margin-top: 64rpx;
 }
 
+/* 文字按钮（微信蓝链） */
 .later,
 .back {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 88rpx; /* ≥44px */
-  margin-top: 16rpx;
+  min-height: 96rpx; /* ≥44px */
+  margin-top: 8rpx;
 }
 
 .later__text,
 .back__text {
   font-size: var(--font-size-base);
-  color: var(--color-text-secondary);
+  color: var(--color-link);
 }
 
 .tip {
   display: block;
   margin-top: 32rpx;
+  padding: 0 24rpx;
+  text-align: center;
   font-size: var(--font-size-sm);
   line-height: 1.6;
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
 }

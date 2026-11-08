@@ -1,5 +1,20 @@
+/* 牌局详情 — 结构与配色走 app.wxss 的令牌与工具类（card / section-label / pill / btn / notice）
+   v2.3：整页不滚（100vh 纵向 flex），牌局头部与成员卡固定，仅流水区伸缩滚动 */
 .room-page {
-  padding-bottom: 160rpx;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  padding-bottom: 216rpx; /* 底部动作条留白 */
+}
+
+/* 加载/错误态占满剩余高度并垂直居中 */
+.room-state {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .room-head__row {
@@ -10,117 +25,85 @@
 
 .room-head__name {
   flex: 1;
-  font-size: 40rpx;
+  min-width: 0;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.room-head__status {
-  margin-left: 16rpx;
-  padding: 4rpx 16rpx;
-  font-size: var(--font-size-sm);
-  color: var(--color-success);
-  border: 1rpx solid var(--color-success);
-  border-radius: var(--radius-base);
-}
-
-.room-head__status--ended {
-  color: var(--color-text-secondary);
-  border-color: var(--color-border);
-}
-
 .room-head__meta {
   display: block;
-  margin-top: 8rpx;
+  margin-top: 10rpx;
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
 
-.readonly-bar {
-  display: flex;
-  align-items: center;
-  margin-top: 24rpx;
-  padding: 20rpx 24rpx;
-  background-color: rgba(250, 173, 20, 0.12);
-  border-radius: var(--radius-base);
+.room-notice {
+  margin-top: var(--gap-card);
 }
 
-.readonly-bar__icon {
+.room-notice__icon {
   margin-right: 12rpx;
+  font-size: var(--font-size-base);
   color: var(--color-warning);
 }
 
-.readonly-bar__text {
+.room-notice__text {
   font-size: var(--font-size-base);
   color: var(--color-text);
 }
 
-.section {
-  margin-top: 40rpx;
-}
-
-.section__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.section__title {
-  display: block;
-  margin-bottom: 16rpx;
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.section__invite {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 120rpx;
-  min-height: 88rpx; /* ≥44px */
-  padding: 0 24rpx;
-  font-size: var(--font-size-base);
-  color: var(--color-primary);
-  border: 1rpx solid var(--color-primary);
-  border-radius: var(--radius-base);
-}
+/* ---------- 成员：横向头像队列 ---------- */
 
 .members {
   width: 100%;
-  white-space: nowrap;
+  display: flex;
+  align-items: flex-start; /* 队尾「＋」框与成员头像顶对齐 */
 }
 
 .members__item {
-  display: inline-flex;
+  display: flex;
+  flex: none; /* 横向滚动内不收缩 */
   flex-direction: column;
   align-items: center;
-  min-width: 128rpx;
-  padding: 8rpx 12rpx;
+  min-width: 136rpx;
+  padding: 12rpx 12rpx;
+  border-radius: var(--radius-base);
+}
+
+.members__item--hover {
+  background-color: var(--color-fill);
 }
 
 .members__avatar {
   width: 88rpx;
   height: 88rpx;
-  border-radius: 50%;
-  background-color: var(--color-border);
+  border-radius: var(--radius-avatar); /* 微信式圆角方形头像 */
+  background-color: var(--color-fill);
+}
+
+/* 可点头像快捷记一笔：主题绿描边 */
+.members__item--tappable .members__avatar {
+  border: 2rpx solid var(--color-primary);
 }
 
 .members__name {
-  max-width: 128rpx;
-  margin-top: 8rpx;
+  max-width: 136rpx;
+  margin-top: 10rpx;
   font-size: var(--font-size-sm);
+  color: var(--color-text);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-/* 头像下方当前盈亏：正红负绿零灰，符号在文本中（A11） */
+/* 头像下方当前盈亏：正红负绿零灰，符号在文本中（A5/A11） */
 .members__pl {
   margin-top: 4rpx;
   font-size: var(--font-size-sm);
+  font-weight: 500;
 }
 
 .members__pl--plus {
@@ -132,73 +115,72 @@
 }
 
 .members__pl--zero {
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
 }
 
 .members__owner {
-  margin-top: 4rpx;
+  margin-top: 6rpx;
+  padding: 2rpx 12rpx;
   font-size: 20rpx;
+  line-height: 1.4;
   color: var(--color-primary);
+  background-color: var(--color-primary-tint);
+  border-radius: var(--radius-pill);
 }
 
-/* 可点头像快捷记一笔的反馈提示 */
-.members__item--tappable .members__avatar {
-  border: 2rpx solid var(--color-primary);
+/* 队尾「＋」空头像框：邀请入口（v1.8，取代原邀请按钮） */
+.members__add-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88rpx;
+  height: 88rpx;
+  font-size: 44rpx;
+  line-height: 1;
+  color: var(--color-primary);
+  border: 2rpx dashed var(--color-primary);
+  border-radius: var(--radius-avatar);
 }
 
 .members__hint {
   display: block;
-  margin-top: 12rpx;
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid var(--color-divider);
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
+}
+
+/* ---------- 流水：v2.3 起为页面唯一滚动区；卡片内由页面插分隔线（组件外类无法穿透影子树）---------- */
+
+.entries-scroll {
+  flex: 1;
+  min-height: 0; /* flex 子项内滚动须允许收缩 */
 }
 
 .entries__card {
   display: block;
-  margin-bottom: 20rpx;
+}
+
+.entries__divider {
+  height: 1rpx;
+  margin-left: var(--padding-base);
+  background-color: var(--color-divider);
 }
 
 .entries__more {
-  padding: 24rpx;
+  padding: 20rpx; /* v2.3 低调化：收紧行高 */
   text-align: center;
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
 }
 
-.actions {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  display: flex;
-  padding: 16rpx var(--padding-base);
-  background-color: #ffffff;
-  box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.05);
-}
-
-.actions__add {
-  flex: 1;
-  min-height: 96rpx; /* ≥44px */
-  font-size: var(--font-size-lg);
-  border-radius: var(--radius-base);
-}
-
-.actions__end {
-  flex: 1;
-  margin-left: 16rpx;
-  min-height: 96rpx; /* ≥44px */
-  font-size: var(--font-size-lg);
-  color: var(--color-danger);
-  border: 1rpx solid var(--color-danger);
-  border-radius: var(--radius-base);
-}
-
+/* 删除为破坏性操作：淡红底 + 微信红文字 */
 .actions__delete {
-  flex: 1;
-  margin-left: 16rpx;
-  min-height: 96rpx; /* ≥44px */
-  font-size: var(--font-size-lg);
-  color: var(--color-text-secondary);
-  border: 1rpx solid var(--color-border);
-  border-radius: var(--radius-base);
+  color: var(--color-danger);
+  background-color: var(--tint-danger);
+}
+
+.actions__delete--hover {
+  background-color: rgba(250, 81, 81, 0.18);
 }

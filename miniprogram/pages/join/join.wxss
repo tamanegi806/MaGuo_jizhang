@@ -1,48 +1,54 @@
+/* 加入牌局 — 结构与配色走 app.wxss 的令牌与工具类 */
+.join-page {
+  padding-top: 16rpx;
+}
+
 .auto-join {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 96rpx 0;
+  padding: 120rpx var(--padding-base);
 }
 
 .auto-join__text {
-  font-size: var(--font-size-lg);
-  color: var(--color-text);
-}
-
-.auto-join__code {
-  margin-top: 16rpx;
-  font-size: 44rpx;
-  font-weight: 600;
-  letter-spacing: 6rpx;
-  color: var(--color-primary);
-}
-
-.form {
-  margin-top: 32rpx;
-}
-
-.form__label {
-  display: block;
-  margin-bottom: 16rpx;
   font-size: var(--font-size-base);
   color: var(--color-text-secondary);
 }
 
+.auto-join__code {
+  margin-top: 24rpx;
+  font-size: var(--font-size-num);
+  font-weight: 600;
+  letter-spacing: 8rpx;
+  text-indent: 8rpx;
+  color: var(--color-primary);
+}
+
+/* 首屏标题不再需要 40rpx 上边距 */
+.join-label {
+  margin-top: 16rpx;
+}
+
 .form__input {
-  min-height: 96rpx; /* ≥44px */
-  padding: 0 24rpx;
-  font-size: 40rpx;
+  height: 120rpx;
+  font-size: var(--font-size-num);
+  font-weight: 600;
+  letter-spacing: 10rpx;
+  text-indent: 10rpx;
+  text-align: center;
+  color: var(--color-text);
+}
+
+.form__placeholder {
+  font-weight: 400;
   letter-spacing: 4rpx;
-  border: 1rpx solid var(--color-border);
-  border-radius: var(--radius-base);
-  background-color: #ffffff;
+  color: var(--color-text-tertiary);
 }
 
 .form__error-box {
-  margin-top: 16rpx;
-  padding: 16rpx 24rpx;
-  background-color: rgba(255, 77, 79, 0.08);
+  margin-top: 20rpx;
+  padding: 20rpx 24rpx;
+  background-color: var(--tint-danger);
   border-radius: var(--radius-base);
 }
 
@@ -52,18 +58,15 @@
 }
 
 .submit {
-  width: 100%;
-  min-height: 96rpx; /* ≥44px */
   margin-top: 48rpx;
-  font-size: var(--font-size-lg);
-  border-radius: var(--radius-base);
 }
 
 .tip {
   display: block;
-  margin-top: 48rpx;
+  margin-top: 40rpx;
+  padding: 0 24rpx;
   text-align: center;
   font-size: var(--font-size-sm);
   line-height: 1.6;
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
 }
