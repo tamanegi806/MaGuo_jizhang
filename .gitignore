@@ -5,3 +5,9 @@ temp/
 dist/
 .DS_Store
 thor.log
+
+# 仅本地保留、不入库（GitHub 仓库为公开镜像，产品文档不外发）
+doc/
+# 微信开发者工具产物
+minitest/
+.screenshots/
