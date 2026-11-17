@@ -33,8 +33,8 @@ exports.FAN_MULTIPLIER_BASE = 2
 exports.ROOM_STATUS_ACTIVE = 'active'
 exports.ROOM_STATUS_ENDED = 'ended'
 
-/** @type {number} v2.6：闲置自动结束阈值——无新增流水且无新成员加入达 7 天 */
-exports.IDLE_AUTO_END_MS = 7 * 24 * 60 * 60 * 1000
+/** @type {number} v2.6：闲置自动结束阈值——无新增流水且无新成员加入达 24 小时 */
+exports.IDLE_AUTO_END_MS = 24 * 60 * 60 * 1000
 
 /** @type {number} v2.6：闲置扫描单轮最多处理的进行中场次（最闲置者优先，余量下轮再扫） */
 exports.IDLE_AUTO_END_BATCH = 50

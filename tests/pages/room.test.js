@@ -178,46 +178,11 @@ describe('pages/room', () => {
   })
 
   describe('v2.6 闲置自动结束的页面标注', () => {
-    const DAY = 24 * 60 * 60 * 1000
-
-    test('临近自动结束（<2 天）-> 预告文案按剩余天数向上取整', async () => {
-      roomService.getRoomDetail.mockResolvedValue(
-        detailFixture({ lastActivityAt: Date.now() - 6 * DAY, autoEndAt: Date.now() + 1.5 * DAY })
-      )
-      const inst = await openRoom()
-      expect(inst.data.idlePrewarnText).toBe('久未记账，约 2 天后将自动结束')
-      expect(inst.data.endedReadonly).toBe(false) // 预告不等于已结束
-    })
-
-    test('剩余不足一天 -> 至少显示「约 1 天后」', async () => {
-      roomService.getRoomDetail.mockResolvedValue(detailFixture({ autoEndAt: Date.now() + 3600 * 1000 }))
-      const inst = await openRoom()
-      expect(inst.data.idlePrewarnText).toBe('久未记账，约 1 天后将自动结束')
-    })
-
-    test('定时器尚未扫描（autoEndAt 已过）-> 即将自动结束', async () => {
-      roomService.getRoomDetail.mockResolvedValue(detailFixture({ autoEndAt: Date.now() - 1000 }))
-      const inst = await openRoom()
-      expect(inst.data.idlePrewarnText).toBe('久未记账，本场牌局即将自动结束')
-    })
-
-    test('距自动结束尚远 / 服务端未下发 autoEndAt -> 不预告', async () => {
-      roomService.getRoomDetail.mockResolvedValue(detailFixture({ autoEndAt: Date.now() + 5 * DAY }))
-      const far = await openRoom()
-      expect(far.data.idlePrewarnText).toBe('')
-
-      cache.clearAll()
-      roomService.getRoomDetail.mockResolvedValue(detailFixture()) // 历史数据无该字段
-      const legacy = await openRoom()
-      expect(legacy.data.idlePrewarnText).toBe('')
-    })
-
     test('长期未记账被自动结束 -> 标注为自动结束；房主手动结束 -> 中性标注', async () => {
       roomService.getRoomDetail.mockResolvedValue(detailFixture({ status: 'ended', endReason: 'idle' }))
       const auto = await openRoom()
       expect(auto.data.endedReadonly).toBe(true)
       expect(auto.data.endedByIdle).toBe(true)
-      expect(auto.data.idlePrewarnText).toBe('') // 已结束不再预告
 
       cache.clearAll()
       roomService.getRoomDetail.mockResolvedValue(detailFixture({ status: 'ended', endReason: 'owner' }))
@@ -228,19 +193,6 @@ describe('pages/room', () => {
       roomService.getRoomDetail.mockResolvedValue(detailFixture({ status: 'ended' })) // 历史房间 endReason=null
       const legacy = await openRoom()
       expect(legacy.data.endedByIdle).toBe(false)
-    })
-
-    test('记账后轮询取到新活跃时间 -> 预告消失', async () => {
-      roomService.getRoomDetail.mockResolvedValue(detailFixture({ autoEndAt: Date.now() + DAY }))
-      const inst = await openRoom()
-      expect(inst.data.idlePrewarnText).not.toBe('')
-
-      roomService.getRoomDetail.mockResolvedValue(
-        detailFixture({ recent: [entryFixture(1), entryFixture(2), entryFixture(3)], autoEndAt: Date.now() + 7 * DAY })
-      )
-      await intervalSpy.cb()
-      await flushPromises()
-      expect(inst.data.idlePrewarnText).toBe('')
     })
   })
 

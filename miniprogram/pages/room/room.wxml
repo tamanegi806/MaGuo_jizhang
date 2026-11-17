@@ -17,15 +17,10 @@
       <text class="room-head__meta">创建于 {{createdAtStr}} · {{room.memberCount}} 人</text>
     </view>
 
-    <!-- v2.6：闲置自动结束（预告阈值以服务端 autoEndAt 为准；已结束标注区分 endReason） -->
+    <!-- v2.6：闲置自动结束的已结束标注（按 endReason 区分） -->
     <view wx:if="{{endedReadonly}}" class="notice notice--warning room-notice">
       <text class="room-notice__icon">⚠</text>
       <text class="room-notice__text">{{endedByIdle ? '牌局已因长期未记账自动结束，数据仅可查看' : '牌局已结束，数据仅可查看'}}</text>
-    </view>
-
-    <view wx:elif="{{idlePrewarnText}}" class="notice notice--warning room-notice">
-      <text class="room-notice__icon">⏳</text>
-      <text class="room-notice__text">{{idlePrewarnText}}</text>
     </view>
 
     <text class="section-label">成员</text>

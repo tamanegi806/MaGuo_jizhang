@@ -595,10 +595,10 @@ describe('autoEndIdle（v2.6 闲置自动结束）', () => {
     expect((await roomRepo.findById('r_idle1')).status).toBe('active')
   })
 
-  test('ROOM-IDLE-02 活跃满 7 天 -> 结束、endReason=idle、邀请码归档、返回体契约', async () => {
+  test('ROOM-IDLE-02 活跃满 24 小时 -> 结束、endReason=idle、邀请码归档、返回体契约', async () => {
     const roomRepo = new FakeRoomRepo()
     const base = now()
-    // 处理器内部 ctx.now()=base+1，cutoff=base+1-7d；恰满 7 天（base-7d）<= cutoff 应被结束
+    // 处理器内部 ctx.now()=base+1，cutoff=base+1-24h；恰满 24 小时（base-24h）<= cutoff 应被结束
     await seedActive(roomRepo, 'r_idle1', { lastActivityAt: base - IDLE_AUTO_END_MS, inviteCode: '0721' })
     const res = await handlers.autoEndIdle({}, timerCtx(roomRepo))
     expect(res).toEqual({ scanned: 1, ended: [{ roomId: 'r_idle1', inviteCode: 'E:r_idle1' }] })
@@ -609,10 +609,10 @@ describe('autoEndIdle（v2.6 闲置自动结束）', () => {
     expect(room.inviteCode).toBe('E:r_idle1') // v2.0 归档语义复用，释放数字码位
   })
 
-  test('ROOM-IDLE-03 近 7 天内有活动 -> 跳过不结束', async () => {
+  test('ROOM-IDLE-03 近 24 小时内有活动 -> 跳过不结束', async () => {
     const roomRepo = new FakeRoomRepo()
     const base = now()
-    await seedActive(roomRepo, 'r_fresh', { lastActivityAt: base - DAY })
+    await seedActive(roomRepo, 'r_fresh', { lastActivityAt: base - DAY / 2 })
     const res = await handlers.autoEndIdle({}, timerCtx(roomRepo))
     expect(res).toEqual({ scanned: 1, ended: [] })
     expect((await roomRepo.findById('r_fresh')).status).toBe('active')
@@ -621,17 +621,17 @@ describe('autoEndIdle（v2.6 闲置自动结束）', () => {
   test('ROOM-IDLE-04 历史数据无 lastActivityAt -> 回退 max(createdAt, updatedAt)', async () => {
     const roomRepo = new FakeRoomRepo()
     const base = now()
-    // 旧房：创建于 7 天前且从未推进 -> 结束
+    // 旧房：创建于阈值以前且从未推进 -> 结束
     await seedActive(roomRepo, 'r_old', { createdAt: base - IDLE_AUTO_END_MS - DAY })
     // 旧房新近有人加入（updatedAt 被推进）-> 保留
-    await seedActive(roomRepo, 'r_joined_recent', { createdAt: base - 30 * DAY, updatedAt: base - DAY })
+    await seedActive(roomRepo, 'r_joined_recent', { createdAt: base - 30 * DAY, updatedAt: base - DAY / 2 })
     const res = await handlers.autoEndIdle({}, timerCtx(roomRepo))
     expect(res.scanned).toBe(2)
     expect(res.ended.map((e) => e.roomId)).toEqual(['r_old'])
     expect((await roomRepo.findById('r_joined_recent')).status).toBe('active')
   })
 
-  test('ROOM-IDLE-05 阈值边缘：还差 1ms 未满 7 天 -> 不结束', async () => {
+  test('ROOM-IDLE-05 阈值边缘：还差 1ms 未满 24 小时 -> 不结束', async () => {
     const roomRepo = new FakeRoomRepo()
     const base = now()
     // cutoff=base+1-IDLE_AUTO_END_MS，取比它晚 1ms 的时间点
@@ -692,7 +692,7 @@ describe('autoEndIdle（v2.6 闲置自动结束）', () => {
     expect(res).toEqual({ scanned: 1, ended: [{ roomId: 'r_active_idle', inviteCode: 'E:r_active_idle' }] })
   })
 
-  test('ROOM-IDLE-09 create/list/detail 出口统一附带 lastActivityAt/autoEndAt（前端预告数据源）', async () => {
+  test('ROOM-IDLE-09 create/list/detail 出口统一附带 lastActivityAt/autoEndAt（出口契约）', async () => {
     const userRepo = new FakeUserRepo()
     const roomRepo = new FakeRoomRepo()
     const ctx = { ...makeCtx({ userRepo, roomRepo }), openid: OWNER }

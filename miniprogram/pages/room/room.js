@@ -8,7 +8,7 @@
  * 删除：房主可删除牌局记录（连同全部流水，需二次确认）。
  * v2.0：「结算统计」模块移除（净额仍在头像下方）；邀请码 4 位纯数字；成员上限 7 人。
  * v2.5：详情进内存缓存，进入页面先渲染缓存再后台校准（SWR）；记一笔/结束/删除成功后写时失效。
- * v2.6：长期未记账的牌局由服务端定时器自动结束——进行中且临近时点时顶部预告，已结束按 endReason 区分标注。
+ * v2.6：长期未记账的牌局由服务端定时器自动结束——已结束按 endReason 区分标注。
  */
 
 const roomService = require('../../services/room-service')
@@ -24,27 +24,6 @@ const { ROOM_POLL_INTERVAL_MS: POLL_INTERVAL_MS } = require('../../config/env')
 const { DEFAULT_AVATAR_PATH } = require('../../config/assets')
 
 const ENTRY_PAGE_SIZE = 20
-
-/** v2.6：闲置自动结束的应用内预告窗口（纯展示口径；阈值以服务端 autoEndAt 为准，不在前端复制 7 天） */
-const IDLE_PREWARN_WINDOW_MS = 2 * 24 * 60 * 60 * 1000
-const DAY_MS = 24 * 60 * 60 * 1000
-
-/**
- * 闲置自动结束预告文案（v2.6）
- * @param {object} room detail 的房间对象（含 autoEndAt）
- * @param {number} nowMs 当前时间
- * @returns {string} 空串表示无需预告
- */
-function idlePrewarnText(room, nowMs) {
-  if (!room || room.status !== 'active') return ''
-  const autoEndAt = room.autoEndAt
-  if (!Number.isInteger(autoEndAt)) return '' // 服务端未下发则不猜
-  const left = autoEndAt - nowMs
-  if (left > IDLE_PREWARN_WINDOW_MS) return ''
-  if (left <= 0) return '久未记账，本场牌局即将自动结束'
-  const days = Math.max(1, Math.ceil(left / DAY_MS))
-  return `久未记账，约 ${days} 天后将自动结束`
-}
 
 /** 净额 → 头像下方展示（正红负绿灰零，符号在文本中） */
 function toPlDisplay(totalCents) {
@@ -71,7 +50,6 @@ Page({
     createdAtStr: '',
     endedReadonly: false,
     endedByIdle: false, // v2.6：已结束牌局是否为长期未记账自动结束
-    idlePrewarnText: '', // v2.6：进行中牌局的自动结束预告文案（空则不显示）
     submitting: false,
     // 邀请弹层
     inviteVisible: false,
@@ -147,7 +125,6 @@ Page({
       createdAtStr: formatDateTime(room.createdAt),
       endedReadonly: room.status === 'ended',
       endedByIdle: room.status === 'ended' && room.endReason === 'idle', // v2.6：区分长期未记账自动结束
-      idlePrewarnText: idlePrewarnText(room, Date.now()), // v2.6：进行中牌局的自动结束预告
       inviteCode: room.inviteCode
     })
     if (room.status === 'active') {

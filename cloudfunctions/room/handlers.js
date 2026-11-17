@@ -307,7 +307,7 @@ async function end(payload, ctx) {
 
 // ── autoEndIdle（v2.6：定时器触发的闲置自动结束，内部 action）────────
 /**
- * 扫描进行中牌局，把有效活跃时间距今 ≥ IDLE_AUTO_END_MS（7 天）的自动结束。
+ * 扫描进行中牌局，把有效活跃时间距今 ≥ IDLE_AUTO_END_MS（24 小时）的自动结束。
  * 判据「活跃」= 无新增流水且无新成员加入；记账/加入都会推进 lastActivityAt。
  * 由定时器以 ctx.source='timer' 调用，不接受外部 action（前端无入口，见 6.5）。
  * 单轮最多处理 IDLE_AUTO_END_BATCH 场；每场走独立事务（endRoom），互不影响。

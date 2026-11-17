@@ -14,7 +14,7 @@
 | 记账 | 底部弹层「记一笔」，只允许**本人给他人**转账；金额以「分」为单位存取，避免浮点误差；重复点击与弱网重试靠幂等键去重 |
 | 结算 | 实时每人净盈亏、收 / 付方向、对转建议（`shared/settlement.js`，纯函数、可单测） |
 | 邀请 | 邀请码 + 小程序码（`invite` 云函数生成，加载失败可重试 / 复制邀请码） |
-| 闲置 | 连续 7 天没有记账、也没有新人加入的进行中牌局，由定时触发器**自动结束**并标注结束原因；牌局结束后旧邀请码归档失效，提示「邀请码无效」 |
+| 闲置 | 连续 24 小时没有记账、也没有新人加入的进行中牌局，由定时触发器**自动结束**并标注结束原因；牌局结束后旧邀请码归档失效，提示「邀请码无效」 |
 | 体验 | 首屏 SWR 缓存（先出缓存再后台校验）· 流水分页 + 滚动分批加载 · 临近自动结束的提示 · 默认头像 |
 
 安全边界：所有身份一律取 `cloud.getWXContext().OPENID`，前端不传、也不可信前端传的身份；房间成员、牌局状态、金额合法性都在云函数里再校验一遍。
@@ -123,19 +123,19 @@ npm test          # 32 套件 / 537 用例，全程离线
 
 > 右键 `cloudfunctions/room/config.json` → 「上传触发器」
 
-触发器定义（每天 04:30 扫一轮：按 `updatedAt` 升序取进行中的牌局，单轮最多结束 `IDLE_AUTO_END_BATCH = 50` 局）：
+触发器定义（每小时整点扫一轮：按 `updatedAt` 升序取进行中的牌局，单轮最多结束 `IDLE_AUTO_END_BATCH = 50` 局）：
 
 ```json
-{ "triggers": [{ "name": "autoEndIdle", "type": "timer", "config": "0 30 4 * * * *" }] }
+{ "triggers": [{ "name": "autoEndIdle", "type": "timer", "config": "0 0 * * * * *" }] }
 ```
 
-手动验证它（不用等到 7 天）：云开发控制台 → 云函数 → `room` → 云端测试，填入
+手动验证它（不用等到 24 小时）：云开发控制台 → 云函数 → `room` → 云端测试，填入
 
 ```json
 { "TriggerName": "autoEndIdle", "Type": "Timer" }
 ```
 
-`index.js` 只认 `event.Type === 'Timer'` 这个信号才会把来源标成 `timer`；普通 `callFunction` 调用走到 `autoEndIdle` 会被拒绝（`UNAUTHENTICATED`），所以外部调用改不了别人的牌局。想让某局被扫到：`status` 留作 `active`，把 `lastActivityAt` 改到 7 天以前（判据优先读它，缺失时才回退 `max(createdAt, updatedAt)`），并顺手把 `updatedAt` 也改早——扫描按 `updatedAt` 升序取，太新的会掉在批次窗口外面。
+`index.js` 只认 `event.Type === 'Timer'` 这个信号才会把来源标成 `timer`；普通 `callFunction` 调用走到 `autoEndIdle` 会被拒绝（`UNAUTHENTICATED`），所以外部调用改不了别人的牌局。想让某局被扫到：`status` 留作 `active`，把 `lastActivityAt` 改到 24 小时以前（判据优先读它，缺失时才回退 `max(createdAt, updatedAt)`），并顺手把 `updatedAt` 也改早——扫描按 `updatedAt` 升序取，太新的会掉在批次窗口外面。
 
 其他两点配置建议：运行时选 Node.js 16；`room` 的超时时间适当调大（定时器一轮内可能连做多笔事务）。
 

@@ -157,7 +157,7 @@ describe('pages hygiene', () => {
     const cfgPath = path.join(__dirname, '../../cloudfunctions/room/config.json')
     expect(fs.existsSync(cfgPath)).toBe(true) // 缺 config.json：定时器不会随部署生效
     expect(JSON.parse(fs.readFileSync(cfgPath, 'utf8'))).toEqual({
-      triggers: [{ name: 'autoEndIdle', type: 'timer', config: '0 30 4 * * * *' }]
+      triggers: [{ name: 'autoEndIdle', type: 'timer', config: '0 0 * * * * *' }]
     })
 
     // 判据在服务端：前端没有任何 autoEndIdle 调用面
@@ -169,27 +169,27 @@ describe('pages hygiene', () => {
     expect(roomJs).not.toMatch(/autoEndIdle/)
     expect(services).not.toMatch(/autoEndIdle/)
 
-    // 前端只有展示窗口，不得复制 7 天阈值（阈值改动只发生在 shared/constants.js）
-    expect(roomJs).toMatch(/IDLE_PREWARN_WINDOW_MS/)
-    expect(roomJs).not.toMatch(/7\s*\*\s*24\s*\*\s*60\s*\*\s*60/)
+    // 结束前预告条已移除：前端不再有自动结束的展示口径，也不得复制阈值（阈值改动只发生在 shared/constants.js）
+    expect(roomJs).not.toMatch(/prewarn|PREWARN|IDLE_AUTO_END_MS/i)
+    expect(roomJs).not.toMatch(/24\s*\*\s*60\s*\*\s*60\s*\*\s*1000/)
 
     // 云函数侧：timer-only 守卫 + 阈值/原因常量集中定义
     const handlers = readIf(path.join(__dirname, '../../cloudfunctions/room/handlers.js'))
     expect(handlers).toMatch(/ctx\.source !== 'timer'/)
     const constants = readIf(path.join(__dirname, '../../shared/constants.js'))
-    expect(constants).toMatch(/IDLE_AUTO_END_MS = 7 \* 24 \* 60 \* 60 \* 1000/)
+    expect(constants).toMatch(/IDLE_AUTO_END_MS = 24 \* 60 \* 60 \* 1000/)
     expect(constants).toMatch(/END_REASON_IDLE = 'idle'/)
   })
 
-  test('v2.6 详情页标注接线：自动结束标注与预告条都绑到数据字段', () => {
+  test('v2.6 详情页标注接线：自动结束标注绑到数据字段，结束前预告条已移除', () => {
     const wxml = readIf(path.join(pagesDir, 'room', 'room.wxml'))
     const js = readIf(path.join(pagesDir, 'room', 'room.js'))
-    // 已结束标注区分 endReason；进行中临近时点走同一条 notice 样式（wx:elif 互斥）
+    // 已结束标注区分 endReason，复用既有 notice 视觉，不另起炉灶
     expect(wxml).toMatch(/wx:if="\{\{endedReadonly\}\}"[\s\S]*?endedByIdle \? '牌局已因长期未记账自动结束/)
-    expect(wxml).toMatch(/wx:elif="\{\{idlePrewarnText\}\}"[\s\S]*?\{\{idlePrewarnText\}\}/)
-    expect(wxml).toMatch(/notice--warning room-notice/) // 复用既有 notice 视觉，不另起炉灶
+    expect(wxml).toMatch(/notice--warning room-notice/)
+    expect(wxml).not.toMatch(/idlePrewarnText/) // 进行中不再预告
     expect(js).toMatch(/endedByIdle: room\.status === 'ended' && room\.endReason === 'idle'/)
-    expect(js).toMatch(/idlePrewarnText: idlePrewarnText\(room, Date\.now\(\)\)/)
+    expect(js).not.toMatch(/idlePrewarnText/)
   })
 
   test('v2.7 隐私接线：弹窗前置到页面入口、采集动作前各留兜底、开关与统计口径一致', () => {
